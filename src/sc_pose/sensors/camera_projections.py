@@ -1,0 +1,1 @@
+""" Code to project pose information on to a camera image """
