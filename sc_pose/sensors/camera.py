@@ -41,7 +41,7 @@ class CameraBase(ABC):
         self.sh_mm  = float(sensor_height_mm) # sensor height in mm
         self.img_w  = int(image_width_px) # image width in pixels
         self.img_h  = int(image_height_px) # image height in pixels
-        self.fl_mm  = float(focal_length_mm) # focal length in 
+        self.fl_mm  = float(focal_length_mm) # focal length in mm
         self.sq_px  = square_pixels # whether pixels are square (fx = fy)
         self._validate_params() # validate intrinsic parameters
 
@@ -51,8 +51,7 @@ class CameraBase(ABC):
         self._cx: float | None = None
         self._cy: float | None = None
         self._skew: float = 0.0  # pinhole convention: keep at 0 unless explicitly set
-        self._K_cache: NDArray[np.float32] | None = None # cache for intrinsic matrix K
-        # TODO: use this everywhere dtype is needed
+        self._K_cache: NDArray[np.floating] | None = None # cache for intrinsic matrix K
         self.dtype  = np.dtype(dtype) # data type for computations
 
 
@@ -92,8 +91,7 @@ class CameraBase(ABC):
         return float(c_x), float(c_y)
      
 
-    @staticmethod
-    def build_Kmat(fx: float, fy: float, cx: float, cy: float, skew: float = 0.0) -> NDArray[np.float32]:
+    def build_Kmat(self, fx: float, fy: float, cx: float, cy: float, skew: float = 0.0) -> NDArray[np.floating]:
         """ 
         build the camera intrinsic matrix K 
         LaTeX: K = \begin{bmatrix} f_x & s & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
@@ -102,23 +100,73 @@ class CameraBase(ABC):
                             [fx, skew, cx],
                             [0.0, fy, cy],
                             [0.0,  0.0,  1.0]
-                            ], dtype = np.float32)
+                            ], dtype = self.dtype)
         return Kmat    
+    
+    
+    def print_state(self, *, max_array_elems: int = 6, return_str: bool = False) -> str | None:
+        """
+        print (or return) a human-readable summary of all instance variables
+        currently set on this camera object.
+
+        Args:
+            max_array_elems: maximum number of ndarray elements to display
+            return_str: if True, return the formatted string instead of printing
+        """
+        lines   = [f"{self.__class__.__name__} state:"]
+
+        for name, value in vars(self).items():
+            if value is None:
+                continue
+
+            # --- formatting ---
+            if isinstance(value, np.ndarray):
+                flat = value.ravel()
+                if flat.size <= max_array_elems:
+                    val_str = f"ndarray(shape={value.shape}, dtype={value.dtype}, values={flat.tolist()})"
+                else:
+                    preview = flat[:max_array_elems].tolist()
+                    val_str = (
+                        f"ndarray(shape={value.shape}, dtype={value.dtype}, "
+                        f"values={preview} ...)"
+                    )
+
+            elif isinstance(value, np.dtype):
+                val_str = f"dtype({value})"
+
+            elif isinstance(value, Path):
+                val_str = str(value)
+
+            elif isinstance(value, (float, int, bool, str)):
+                val_str = repr(value)
+
+            else:
+                val_str = f"{type(value).__name__}({value})"
+
+            lines.append(f"  {name}: {val_str}")
+
+        out = "\n".join(lines)
+
+        if return_str:
+            return out
+
+        print(out)
+        return None
 
 
     @abstractmethod
-    def calc_Kmat(self) -> NDArray[np.float32]:
+    def calc_Kmat(self) -> NDArray[np.floating]:
         """ Return the 3x3 camera intrinsic matrix K """
         raise NotImplementedError("CameraBase.calc_Kmat() must be implemented in subclass")
     
 
     @abstractmethod
-    def project_camera3Dxyz_to_imageUV(self, xyz: NDArray[np.float32]) -> NDArray[np.float32]:
+    def project_camera3Dxyz_to_imageUV(self, xyz: NDArray[np.floating]) -> NDArray[np.floating]:
         """ Project 3D camera coordinates (X, Y, Z) to image pixel coordinates (u, v) """
         raise NotImplementedError("CameraBase.project_camera3Dxyz_to_imageUV() must be implemented in subclass")
     
     @abstractmethod
-    def project_imageUV_to_cameraRay(self, uv: NDArray[np.float32]) -> Tuple[NDArray[np.float32], NDArray[np.float32]]:
+    def project_imageUV_to_cameraRay(self, uv: NDArray[np.floating]) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
         """ Project image pixel coordinates (u, v) to normalized 3D camera coordinates (X, Y, Z = 1) """
         raise NotImplementedError("CameraBase.project_imageUV_to_cameraRay() must be implemented in subclass")
     
@@ -143,14 +191,16 @@ class PinholeCamera(CameraBase):
                 k3: float = 0.0, # third radial distortion coefficient
                 p1: float = 0.0, # first tangential distortion coefficient
                 p2: float = 0.0, # second tangential distortion coefficient
+                dtype:  np.dtype = np.float32
                 ) -> None:
-        super().__init__(sensor_width_mm, sensor_height_mm, image_width_px, image_height_px, focal_length_mm, square_pixels)
+        super().__init__(sensor_width_mm, sensor_height_mm, image_width_px, image_height_px, focal_length_mm, square_pixels, dtype = dtype)
         self.k1 = float(k1)
         self.k2 = float(k2)
         self.k3 = float(k3)
         self.p1 = float(p1)
         self.p2 = float(p2)
         self._validate_basic_CB_distortion()
+        self._skew  = 0.0 # by default, pinhole model has zero skew, we set it here for clarity though it is already set in base class
         
         # Brown–Conrady Distortion Model (OpenCV-compatible) Explained
         # -------------------------------------------------
@@ -205,6 +255,7 @@ class PinholeCamera(CameraBase):
                         k3                  = cfg.get('k3', 0.0),
                         p1                  = cfg.get('p1', 0.0),
                         p2                  = cfg.get('p2', 0.0),
+                        dtype               = cfg.get('dtype', np.float32)
                         )
         except KeyError as e:
             missing     = str(e).strip("'")
@@ -222,7 +273,7 @@ class PinholeCamera(CameraBase):
                 raise ValueError(f"{name} must be finite, got {val}")
 
 
-    def calc_Kmat(self) -> NDArray[np.float32]:
+    def calc_Kmat(self) -> NDArray[np.floating]:
         """ Calculate and return the intrinsic matrix K (3x3), skew is always set to 0.0 in pinhole model """
         if self._K_cache is not None:
             # use cached K matrix
@@ -240,7 +291,7 @@ class PinholeCamera(CameraBase):
                             )
             fx, fy  = self.focal_length_px()
             cx, cy  = self.center_principal_point()
-        Kmat        = self.build_Kmat(fx = fx, fy = fy, cx = cx, cy = cy, skew = 0.0) # pinhole convention: zero skew
+        Kmat        = self.build_Kmat(fx = fx, fy = fy, cx = cx, cy = cy, skew = self._skew) # pinhole convention: zero skew
         self._K_cache   = Kmat # cache K matrix
         return Kmat
     
@@ -322,7 +373,7 @@ class PinholeCamera(CameraBase):
         except (TypeError, ValueError) as e:
             raise ValueError(f"PinholeCamera.set_calibration_yaml: invalid value in YAML file: {e}") from e
     
-    def project_camera3Dxyz_to_imageUV(self, xyz: NDArray[np.float32]) -> NDArray[np.float32]:
+    def project_camera3Dxyz_to_imageUV(self, xyz: NDArray[np.floating]) -> NDArray[np.floating]:
         """ 
         Project 3D camera coordinates (X, Y, Z) to image pixel coordinates (u, v) using Brown-Conrady distortion 
 
@@ -337,7 +388,7 @@ class PinholeCamera(CameraBase):
 
         # sanity check input
 
-        xyz     = np.asarray(xyz, dtype = np.float32)
+        xyz     = np.asarray(xyz, dtype = self.dtype)
 
         if xyz.shape[-1] != 3:
             raise ValueError("xyz must have shape (..., 3)")
@@ -362,8 +413,8 @@ class PinholeCamera(CameraBase):
             warnings.warn(f"PinholeCamera.project_camera3Dxyz_to_imageUV: there are a total of {num_invalid} invalid points (behind or very close to the camera)", RuntimeWarning)
         if num_valid == 0:
             raise ValueError("PinholeCamera.project_camera3Dxyz_to_imageUV: no valid points with Z > 0 found")
-        x       = np.full_like(ZZ, np.nan, dtype = np.float32)
-        y       = np.full_like(ZZ, np.nan, dtype = np.float32)
+        x       = np.full_like(ZZ, np.nan, dtype = self.dtype)
+        y       = np.full_like(ZZ, np.nan, dtype = self.dtype)
         x[valid] = XX[valid] / ZZ[valid]
         y[valid] = YY[valid] / ZZ[valid]   
         r2      = x * x  + y* y # r^2
@@ -386,11 +437,11 @@ class PinholeCamera(CameraBase):
 
     def undistort_normalized_points(
                                         self, 
-                                        xd: NDArray[np.float32], 
-                                        yd: NDArray[np.float32],
+                                        xd: NDArray[np.floating], 
+                                        yd: NDArray[np.floating],
                                         iters: int = 25,
                                         tol: float = 1e-8
-                                    ) -> Tuple[NDArray[np.float32], NDArray[np.float32]]:
+                                    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
         """ 
         Run iterative undistortion on normalized image coordinates (xd, yd) to get (x, y)
 
@@ -398,8 +449,8 @@ class PinholeCamera(CameraBase):
         x_d = x * (1 + k1 r² + k2 r⁴ + k3 r⁶) + 2*p1*x*y + p2*(r² + 2*x²)
         y_d = y * (1 + k1 r² + k2 r⁴ + k3 r⁶) + p1*(r² + 2*y²) + 2*p2*x*y
         """
-        x   = xd.astype(np.float32, copy = True)
-        y   = yd.astype(np.float32, copy = True)
+        x   = xd.astype(self.dtype, copy = True)
+        y   = yd.astype(self.dtype, copy = True)
         for _ in range(iters):
             x_prev  = x.copy()
             y_prev  = y.copy()
@@ -411,13 +462,14 @@ class PinholeCamera(CameraBase):
             dx      = 2*self.p1*x*y + self.p2*(r2 + 2*x*x)
             dy      = self.p1*(r2 + 2*y*y) + 2*self.p2*x*y
             # forward model: xd = x*radial + dx  =>  solve for x,y
+            # could add gaurd against division by zero here but unlikely for radial to be near zero
             x       = (xd - dx) / radial
             y       = (yd - dy) / radial
             if (np.max(np.abs(x - x_prev)) < tol) and (np.max(np.abs(y - y_prev)) < tol):
                 break
         return x, y
 
-    def project_imageUV_to_cameraRay(self, uv: NDArray[np.float32]) -> Tuple[NDArray[np.float32], NDArray[np.float32]]:
+    def project_imageUV_to_cameraRay(self, uv: NDArray[np.floating]) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
         """ 
         Project image pixel coordinates (u, v) to normalized 3D camera coordinates (X, Y, Z = 1) 
 
@@ -429,7 +481,7 @@ class PinholeCamera(CameraBase):
             unit_rays: (..., 3) array of undistored unit-length 3D points in camera coordinates (X, Y, Z)
         """
         # sanity check input
-        uv      = np.asarray(uv, dtype = np.float32)
+        uv      = np.asarray(uv, dtype = self.dtype)
 
         if uv.shape[-1] != 2:
             raise ValueError("uv must have shape (..., 2)")
@@ -445,7 +497,7 @@ class PinholeCamera(CameraBase):
         # do the inversion 
         y_d     = ( v - cy ) / fy
         x_d     = ( u - cx - skew * y_d ) / fx
-        if any(abs(c) > 0 for c in (self.k1, self.k2, self.k3, self.p1, self.p2)):
+        if any(abs(c) > 1e-8 for c in (self.k1, self.k2, self.k3, self.p1, self.p2)):
             x,y = self.undistort_normalized_points(x_d, y_d)
         else:
             x   = x_d
