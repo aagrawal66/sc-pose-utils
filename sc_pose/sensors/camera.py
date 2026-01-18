@@ -506,4 +506,4 @@ class PinholeCamera(CameraBase):
         # perspective back to normalized camera coordinates
         XYZ     = np.stack([x, y, ones], axis = -1) # shape (..., 3)
         XYZU    = XYZ / np.linalg.norm(XYZ, axis = -1, keepdims = True) # normalize to unit length
-        return XYZ, XYZU
+        return XYZ, XYZU 
