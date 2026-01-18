@@ -2,6 +2,9 @@
 
 import numpy as np 
 from numpy.typing import NDArray 
+from pathlib import Path
+from typing import Tuple, Optional
+import cv2
 import warnings
 
 # local imports
@@ -168,3 +171,82 @@ class PoseProjector:
         points2D    = np.column_stack([u, v])  # N x 2
 
         return points2D
+
+
+def draw_uv_points_on_image(
+                                img_or_path: NDArray[np.uint8] | Path | str,
+                                points_uv: NDArray[np.floating],
+                                *,
+                                point_color: Tuple[int, int, int] = (0, 255, 0),
+                                point_radius: int = 5,
+                                point_thickness: int = -1,
+                                **kwargs # additional keyword arguments for cv2.circle
+                        ) -> NDArray:
+    """ 
+    Draw (u, v) points on image and return the image with drawn points
+    
+    Args:
+        img_or_path: image as numpy array (H, W, 3) or path to image file
+        points_uv: 2D points (N, 2) to be drawn on image
+        point_color: color of points in BGR format, default is green (0, 255, 0)
+        point_radius: radius of points to be drawn, default is 5
+        point_thickness: thickness of points to be drawn, default is -1 (filled circle)
+        **kwargs: additional keyword arguments for cv2.circle function
+    
+    Returns:
+        img_with_points: image with drawn points as numpy array (H, W, 3)
+    """
+    # load / normalize image 
+    if isinstance(img_or_path, (str, Path)):
+        img     = cv2.imread(str(img_or_path), cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise FileNotFoundError(f"Could not read image: {img_or_path}")
+        # ensure 3-channel BGR
+        if img.ndim == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        elif img.shape[2] == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        img_bgr = img
+    elif isinstance(img_or_path, np.ndarray):
+        img         = img_or_path
+        if img.ndim == 2:
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        elif img.ndim == 3 and img.shape[2] == 3:
+            img_bgr = img.copy()
+        elif img.ndim == 3 and img.shape[2] == 4:
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        else:
+            raise ValueError(f"unsupported image shape: {img.shape}")
+    else:
+        raise TypeError("img_or_path must be a numpy array or a path-like")
+
+    H, W    = img_bgr.shape[:2]
+    uv      = np.asarray(points_uv)
+    num_pts = uv.shape[0]
+    if uv.ndim != 2 or uv.shape[1] != 2:
+        raise ValueError(f"uv must have shape (N,2), got {uv.shape}")
+    total_skipped   = 0
+    # draw outputs
+    for i, (u, v) in enumerate(uv):
+        if (not np.isfinite(u) or not np.isfinite(v)):
+            total_skipped += 1
+            continue
+        ui  = int(np.round(u))
+        vi  = int(np.round(v))
+        if ui < 0 or ui >= W or vi < 0 or vi >= H:
+            total_skipped += 1
+            continue
+
+        cv2.circle(
+                    img_bgr, 
+                    (ui, vi), 
+                    point_radius, 
+                    point_color, 
+                    point_thickness,
+                    **kwargs
+                )
+    print(f"total points skipped (out of bounds or invalid) out of {num_pts}: ", total_skipped)
+    
+    return img_bgr
+
+
