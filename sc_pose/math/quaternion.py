@@ -110,6 +110,9 @@ def q2rotm(q: NDArray) -> NDArray:
     Rm      = np.eye(3) + 2*qs*qv_sscp + 2*qv_sscp@qv_sscp
     return Rm
 
+#TODO: implement rotm2q
+def rotm2q(R: NDArray) -> NDArray:
+    pass
 
 def q2theta(q: NDArray) -> float:
     """ Compute the rotation angle (radians) from a RSF quaternion using euler axis and angle representation
