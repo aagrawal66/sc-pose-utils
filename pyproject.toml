@@ -1,0 +1,9 @@
+[build-system]
+requires        = ["setuptools>=64", "wheel"]
+build-backend   = "setuptools.build_meta"
+[project]
+name            = "sc_pose"
+version         = "0.0.1"
+
+# to install the package, run the following command in the terminal at the base of the repo:
+# pip install -e .
