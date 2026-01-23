@@ -16,7 +16,7 @@ HERE            = Path(__file__).parent.resolve()
 # Basler ace acA4112-30uc camera specs: https://www.baslerweb.com/en-us/shop/aca4112-30uc/
 img_width       = 4096 
 img_height      = 3000
-focal_length    = 24.0  # in mm, or 25, need to check 
+focal_length    = 25.0  # in mm 
 sensor_width    = 14.13  # in mm
 sensor_height   = 10.35 # in mm
 
@@ -86,7 +86,11 @@ for index, row in data.iterrows():
     # fill this in with image info
     img     = draw_uv_points_on_image(
                                     img_or_path = img_path,
-                                    points_uv = uv_cam, 
+                                    points_uv = uv_cam,
+                                    point_color = (0, 0, 255),
+                                    point_radius = 10, 
+                                    point_thickness = -1
+                                 
                                 )
     cv2.imwrite( res_path / f"vicon_check_{index+1:02d}.png", img)
     
