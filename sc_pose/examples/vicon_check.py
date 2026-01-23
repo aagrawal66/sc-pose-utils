@@ -42,6 +42,8 @@ csv_keys        = {
 img_filepaths   = list(calib_img_dir.glob("*.png"))
 res_path        = HERE / 'results'
 target_BFF_pts  = np.array([[0.0, 0.0, 0.0]]) # (1, 3)
+calib_flag      = True
+calib_flag      = False
 ##################################### Inputs #####################################
 
 
@@ -57,8 +59,9 @@ cam     = PinholeCamera(
 cam.print_state()
 
 # set calibration
-cam.set_calibration_yaml(calib_data)
-cam.print_state()
+if calib_flag:
+    cam.set_calibration_yaml(calib_data)
+    cam.print_state()
 
 proj    = PoseProjector(camera = cam)
 data                = pd.read_csv(vicon_csv)
