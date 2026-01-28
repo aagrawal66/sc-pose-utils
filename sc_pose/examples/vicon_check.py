@@ -39,6 +39,7 @@ csv_keys        = {
                 'qy_cam': 'basler_qy',
                 'qz_cam': 'basler_qz'
                 }
+
 img_filepaths   = list(calib_img_dir.glob("*.png"))
 res_path        = HERE / 'results'
 target_BFF_pts  = np.array([[0.0, 0.0, 0.0]]) # (1, 3)
@@ -95,11 +96,4 @@ for index, row in data.iterrows():
     cv2.imwrite( res_path / f"vicon_check_{index+1:02d}.png", img)
     
 
-pdb.set_trace()
-
-
-
-# target_BFF_pts  = np.array([0, 0, 0])
-##################################### Inputs #####################################
-
-# resolve paths
+# pdb.set_trace()
