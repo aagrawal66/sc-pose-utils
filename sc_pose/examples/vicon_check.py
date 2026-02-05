@@ -76,7 +76,7 @@ for index, row in data.iterrows():
     q_VICON_2_TARGET= np.array([row[csv_keys['qw_target']], row[csv_keys['qx_target']], row[csv_keys['qy_target']], row[csv_keys['qz_target']]])
     # we want q_TARGET_2_CAM and r_Co2To_CAM
     q_TARGET_2_CAM  = q_mult_shu(q2 = q_VICON_2_CAM, q1 = q_conj(q_VICON_2_TARGET))
-    r_Co2To_CAM    = q2trfm(q_VICON_2_CAM) @ ( r_Vo2To_VICON - r_Vo2Co_VICON)
+    r_Co2To_CAM     = q2trfm(q_VICON_2_CAM) @ ( r_Vo2To_VICON - r_Vo2Co_VICON)
 
     # fill this in with vicon info
     uv_cam  = proj.project_to_image(

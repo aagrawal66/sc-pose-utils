@@ -9,9 +9,38 @@ import warnings
 
 # local imports
 from sc_pose.sensors.camera import CameraBase
-from sc_pose.math.quaternion import q2trfm
+from sc_pose.math.quaternion import q2trfm, q2rotm
 
-class PoseProjector:
+"""
+Note on passive vs active rotations:
+A passive rotation is a change of coordinate frame, while an active rotation is a rotation of vectors in space. 
+e.g.,
+
+Example 1:
+Imagine you're standing still facing north, and you're holding an arrow straight out in front of you, facing north as well.
+You are the coordinate frame, the arrow at its tip is a point in space. 
+Also, imagine the vector from you (your origin) to the arrow tip as a position vector.
+Now: 
+- if you stay facing north, but rotate the arrow 90 degrees to point east, that's an active rotation of the position vector
+- if you instead rotate yourself to face east, while keeping the arrow pointing straight out in front of you, that's a passive rotation of the coordinate frame
+
+Example 2:
+Imagine a camera looking at an object in space. The camera has its own body-fixed coordinate frame (C), and the object has its own body-fixed coordinate frame (t).
+Imagine a set of points in the target object's frame. 
+We need to express that point in the camera's frame in order to project it onto the camera's image plane. To project a point onto the camera 
+image plane, we must express that point in the camera frame. 
+In effect, we align the axes of t with those of C (rotation), then account for their different origins (translation).
+In short, we're aligning the axes of the target frame with the axes of the camera frame. We will then use 
+translation to express the position of the target frame origin in the camera frame.
+
+Two ways to do this:
+p^C = R_{t->C} * p^t + r_{Co->to}^C  (active rotation) 
+p^C = T^C_t * ( p^t - Co^t )  (passive rotation)
+
+The active rotation tkaes directions in target axes and puts them in camera axes.
+"""
+
+class  PoseProjector:
 
     def __init__(self, camera: CameraBase):
         """ Initialize PoseProjector with a Camera object """
@@ -53,11 +82,16 @@ class PoseProjector:
         # check for NaN or Inf values
         if not np.isfinite(points_xyz_TARGET).all():
             raise ValueError("points_xyz_TARGET contains NaN or Inf values")
-        # q2trfm returns a 3x3 transformation (passive rotation, also known as Direction Cosine Matrix) matrix from TARGET to CAMERA frame
-        T_TARGET_2_CAM      = q2trfm(q_TARGET_2_CAM)
+        
+        # with active rotation, we rotate vectors in space, keep the coordinate frame fixed
+        # q2rotm returns a 3x3 an active rotation matrix, it describes rotation of vectors from one frame to another
+        # in this case, we are rotating the position vectors from the camera origin to each point, expressing those vectors in the CAMERA frame
+        # this means
+        R_TARGET_2_CAM      = q2rotm(q_TARGET_2_CAM)
         points_shape        = points_xyz_TARGET.shape # (..., 3) original shape of points
         points_flat         = points_xyz_TARGET.reshape(-1, 3) # (N, 3) points flattened for matrix multiplication
-        points_flat_xyz_CAM = (T_TARGET_2_CAM @ points_flat.T).T + r_Co2To_CAM # (N, 3) points in CAMERA frame
+        # first transpose makes it (3, N) for broadcasting multiplication, then apply rotation, then transpose back to (N, 3)
+        points_flat_xyz_CAM = (R_TARGET_2_CAM @ points_flat.T).T + r_Co2To_CAM # (N, 3) points in CAMERA frame
         points_xyz_CAM      = points_flat_xyz_CAM.reshape(points_shape) # (..., 3) points in CAMERA frame
         points_uv_CAM       = self.camera.project_camera3Dxyz_to_imageUV(points_xyz_CAM) # (..., 2) points in image plane 
         return points_uv_CAM
@@ -126,10 +160,10 @@ class PoseProjector:
             if not np.isfinite(arr).all():
                 raise ValueError(f"PoseProjector.classless_pinhole_project_to_image: {name} contains NaN/Inf")
         
-        # num_pts             = points_xyz_TARGET.shape[0]
-        T_TARGET_2_CAM      = q2trfm(q_TARGET_2_CAM) # 3 x 3 transformation matrix from TARGET to CAMERA frame
+
+        R_TARGET_to_CAM     = q2rotm(q_TARGET_2_CAM) # active rotation matrix from TARGET to CAMERA frame
         # first transpose makes it (3, N) for broadcasting multiplication, then apply rotation, then transpose back to (N, 3)
-        points_xyz_CAM      = (T_TARGET_2_CAM @ points_xyz_TARGET.T).T + r_Co2To_CAM # N x 3 points in CAMERA frame  
+        points_xyz_CAM      = (R_TARGET_to_CAM @ points_xyz_TARGET.T).T + r_Co2To_CAM # N x 3 points in CAMERA frame  
         # normalize points to image plane
         XX                  = points_xyz_CAM[:, 0] 
         YY                  = points_xyz_CAM[:, 1]
