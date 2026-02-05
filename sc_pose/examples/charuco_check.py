@@ -20,8 +20,11 @@ poses_json      = HERE / "artifacts" / test_name / "poses.json"
 charuco_json    = HERE / "artifacts" / test_name / "calibration.json"
 res_path        = HERE / 'results'
 calib_flag      = True
-##################################### Inputs #####################################
-
+img_width       = 4096 
+img_height      = 3000
+focal_length    = 25.0  # in mm 
+sensor_width    = 14.13  # in mm
+sensor_height   = 10.35 # in mm
 # setup keys
 cj_key_charuco      = "charuco_board"
 cj_key_3d_points    = "corners_3d"
@@ -29,6 +32,33 @@ pj_key_poses        = "poses"
 pj_key_Rotm         = "R_B_to_C" # active rotation matrix from board to camera
 pj_key_tr           = "t_C_Co_to_Bo"  # translation from camera origin to board origin in camera frame
 pj_key_imgs         = "image_path"
+##################################### Inputs #####################################
+
+# create camera object
+cam     = PinholeCamera(
+                            sensor_width_mm = sensor_width,
+                            sensor_height_mm = sensor_height,
+                            image_width_px  = img_width,
+                            image_height_px = img_height,
+                            focal_length_mm = focal_length
+                        )
+cam.print_state()
+Kmat    = cam.calc_Kmat()
+print("Camera K-matrix:\n", Kmat)
+
+# set calibration
+if calib_flag:
+    cam.set_calibration_yaml(calib_yaml)
+    cam.print_state()
+
+proj    = PoseProjector(camera = cam)
+
+cam.print_state()
+Kmat    = cam.calc_Kmat()
+print("Camera K-matrix:\n", Kmat)
+proj    = PoseProjector(camera = cam)
+
+
 
 Rmats               = [] 
 trs                 = []
@@ -50,23 +80,12 @@ with open(charuco_json, 'r') as f:
                     }
     target_BFF_pts  = np.stack([v for _, v in sorted(charuco_X_B.items())])
 
-pdb.set_trace()
-
-
-# setup camera 
-cam     = PinholeCamera.from_config(str(calib_yaml))
-cam.print_state()
-Kmat    = cam.calc_Kmat()
-print("Camera K-matrix:\n", Kmat)
-proj    = PoseProjector(camera = cam)
-
 
 for i, img_path in enumerate(img_paths):
     
     img_base        = img_path.stem
     translation     = trs_array[i]
     R_B_to_C        = Rmats_array[i]
-    pdb.set_trace()
     quaternion      = rotm2q(R_B_to_C)
     r_Co2To_CAM     = translation
     q_TARGET_2_CAM  = quaternion
@@ -82,8 +101,8 @@ for i, img_path in enumerate(img_paths):
                                     img_or_path = img_path,
                                     points_uv = uv_cam,
                                     point_color = (0, 0, 255),
-                                    point_radius = 3, 
-                                    point_thickness = -1
+                                    point_radius = 5, 
+                                    point_thickness = 2
                                  
                                 )
     cv2.imwrite( res_path / f"charuco_check_{img_base}.png", img)

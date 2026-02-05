@@ -112,7 +112,35 @@ def q2rotm(q: NDArray) -> NDArray:
 
 #TODO: implement rotm2q
 def rotm2q(R: NDArray) -> NDArray:
-    pass
+    """ Convert an activate rotation matrix to an RSF quaternion with the the trace-based (Shoemake) method for numerical stability """
+    R           = np.array(R, dtype = float)
+    trace       = np.trace(R)
+    if trace > 0:
+        S   = np.sqrt(trace + 1.0) * 2  # S = 4*w
+        w   = 0.25 * S
+        x   = (R[2, 1] - R[1, 2]) / S
+        y   = (R[0, 2] - R[2, 0]) / S
+        z   = (R[1, 0] - R[0, 1]) / S
+    elif (R[0, 0] > R[1, 1]) and (R[0, 0] > R[2, 2]):
+        S   = np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2  # S = 4*x
+        w   = (R[2, 1] - R[1, 2]) / S
+        x   = 0.25 * S
+        y   = (R[0, 1] + R[1, 0]) / S
+        z   = (R[0, 2] + R[2, 0]) / S
+    elif R[1, 1] > R[2, 2]:
+        S   = np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2  # S = 4*y
+        w   = (R[0, 2] - R[2, 0]) / S
+        x   = (R[0, 1] + R[1, 0]) / S
+        y   = 0.25 * S
+        z   = (R[1, 2] + R[2, 1]) / S
+    else:
+        S   = np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2  # S = 4*z
+        w   = (R[1, 0] - R[0, 1]) / S
+        x   = (R[0, 2] + R[2, 0]) / S
+        y   = (R[1, 2] + R[2, 1]) / S
+        z   = 0.25 * S
+    q   = q_norm( np.array([w, x, y, z]) )
+    return q
 
 def q2theta(q: NDArray) -> float:
     """ Compute the rotation angle (radians) from a RSF quaternion using euler axis and angle representation
