@@ -25,6 +25,16 @@ def q_norm(q: NDArray) -> NDArray:
         return np.array([1.0, 0.0, 0.0, 0.0])
     return q / n
 
+def xyzw_to_wxyz(q_xyzw: NDArray) -> NDArray:
+    """Convert a Right Scalar Last (RSL) [x, y, z, w] to RSF [w, x, y, z]."""
+    q_xyzw  = np.asarray(q_xyzw, dtype = float).reshape(4,)
+    return q_norm( np.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]], dtype = float) ) 
+
+def wxyz_to_xyzw(q_wxyz: NDArray) -> NDArray:
+    """Convert an RSF quaternion [w, x, y, z] to RSL [x, y, z, w]."""
+    q_wxyz  = np.asarray(q_wxyz, dtype = float).reshape(4,)
+    return q_norm( np.array([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]], dtype = float) )
+
 def q2gibbs(q: NDArray) -> NDArray:
     """ Convert RSF quaternion to Gibbs vector """
     q   = q_norm(q)
@@ -110,7 +120,6 @@ def q2rotm(q: NDArray) -> NDArray:
     Rm      = np.eye(3) + 2*qs*qv_sscp + 2*qv_sscp@qv_sscp
     return Rm
 
-#TODO: implement rotm2q
 def rotm2q(R: NDArray) -> NDArray:
     """ Convert an activate rotation matrix to an RSF quaternion with the the trace-based (Shoemake) method for numerical stability """
     R           = np.array(R, dtype = float)
