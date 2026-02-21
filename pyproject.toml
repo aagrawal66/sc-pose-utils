@@ -4,6 +4,19 @@ build-backend   = "setuptools.build_meta"
 [project]
 name            = "sc_pose"
 version         = "0.0.1"
+dependencies    = [
+                    "numpy",
+                    "PyYAML",
+                    "opencv-python",
+                ]
+
+[project.optional-dependencies]
+metrics         = [
+                    "torch",
+                ]
+examples        = [
+                    "pandas",
+                ]
 
 # to install the package, run the following command in the terminal at the base of the repo:
 # pip install -e .
