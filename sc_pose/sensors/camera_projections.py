@@ -40,13 +40,18 @@ p^C = T^C_t * ( p^t - Co^t )  (passive rotation)
 The active rotation tkaes directions in target axes and puts them in camera axes.
 """
 
-class  PoseProjector:
+class PoseProjector:
 
-    def __init__(self, camera: CameraBase):
+    def __init__(self, camera: CameraBase | None):
         """ Initialize PoseProjector with a Camera object """
         if not isinstance(camera, CameraBase):
-            raise TypeError(f"camera must be CameraBase, got {type(camera).__name__}")
-        self.camera     = camera
+            if camera is None:
+                warning_msg = f"PoseProjector expects camera init to take in a CameraBase, got {type(camera).__name__}, assuming that classless_pinhole_project_to_image is intended"
+                warnings.warn(warning_msg, RuntimeWarning)
+            else:
+                raise TypeError(f"camera must be CameraBase or None, got {type(camera).__name__}")
+
+        self.camera = camera
     
     def project_to_image(
                             self, 
