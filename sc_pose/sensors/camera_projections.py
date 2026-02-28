@@ -11,34 +11,37 @@ import warnings
 from sc_pose.sensors.camera import CameraBase
 from sc_pose.math.quaternion import q2trfm, q2rotm
 
-"""
-Note on passive vs active rotations:
-A passive rotation is a change of coordinate frame, while an active rotation is a rotation of vectors in space. 
-e.g.,
+r"""
+Note on passive and active rotations:
 
-Example 1:
-Imagine you're standing still facing north, and you're holding an arrow straight out in front of you, facing north as well.
-You are the coordinate frame, the arrow at its tip is a point in space. 
-Also, imagine the vector from you (your origin) to the arrow tip as a position vector.
-Now: 
-- if you stay facing north, but rotate the arrow 90 degrees to point east, that's an active rotation of the position vector
-- if you instead rotate yourself to face east, while keeping the arrow pointing straight out in front of you, that's a passive rotation of the coordinate frame
+A passive rotation is a change of coordinate frame, while an active rotation is a rotation of vectors in space.
 
-Example 2:
-Imagine a camera looking at an object in space. The camera has its own body-fixed coordinate frame (C), and the object has its own body-fixed coordinate frame (t).
-Imagine a set of points in the target object's frame. 
-We need to express that point in the camera's frame in order to project it onto the camera's image plane. To project a point onto the camera 
-image plane, we must express that point in the camera frame. 
-In effect, we align the axes of t with those of C (rotation), then account for their different origins (translation).
-In short, we're aligning the axes of the target frame with the axes of the camera frame. We will then use 
-translation to express the position of the target frame origin in the camera frame.
+Example 1
+\vspace{-2.5mm}
+\begin{itemize}[noitemsep]
+    \item Imagine you're standing still facing north, and you're holding an arrow straight out in front of you, facing north as well.
+    \item You are the coordinate frame, the arrow at its tip is a point in space.
+    \item Also, imagine the vector from you (your origin) to the arrow tip as a position vector.
+    \item If you stay facing north, but rotate the arrow 90 degrees to point east, that's an active rotation of the position vector.
+    \item On the other hand, if you instead rotate yourself to face east, while keeping the arrow pointing straight out in front of you, that's a passive rotation of the coordinate frame.
+\end{itemize}
 
-Two ways to do this:
-p^C = R_{t->C} * p^t + r_{Co->to}^C  (active rotation) 
-p^C = T^C_t * ( p^t - Co^t )  (passive rotation)
-
-The active rotation tkaes directions in target axes and puts them in camera axes.
-"""
+Example 2
+\vspace{-2.5mm}
+\begin{itemize}[noitemsep]
+    \item Imagine a camera looking at an object in space. The camera has its own body-fixed coordinate frame (C), and the object has its own body-fixed coordinate frame (T).
+    \item Imagine a set of points in the target object's frame. 
+    \item We need to express that point in the camera's frame in order to project it onto the camera's image plane.
+    \item To project a point onto the camera image plane, we must express that point in the camera frame. In effect, we align the axes of t with those of C (rotation), then account for their different origins (translation).
+    \item In short, we're aligning the axes of the target frame with the axes of the camera frame. We will then use 
+    translation to express the position of the target frame origin in the camera frame.
+    \item There are two ways to think of the projections here.
+    \begin{itemize}[noitemsep]
+        \item Employing active rotation: $\pp^C = \mathbf{R}_{T\to C} \cdot \pp^T + \rr_{C_o\to T_o}^C$ 
+        \item Employing passive rotation: $\pp^C = \Tr^C_T \cdot ( \pp^T - \rr_{T_o\to C_o}^T) = \Tr^C_T \pp^T + \rr_{C_o\to T_o}^C$
+        \item Note that $ \Tr^C_T \pp^T$ are the coordinates of the same physical point, expressed in the camera axes, but still referenced to the target origin. We need to add the translation between the target and camera frame origins to get into the camera frame.
+    \end{itemize}
+\end{itemize}"""
 
 class PoseProjector:
 
