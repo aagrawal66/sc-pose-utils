@@ -209,3 +209,4 @@ __marimo__/
 
 # specific folders in sc-pose-utils
 sc_pose/examples/results/*
+*.png
