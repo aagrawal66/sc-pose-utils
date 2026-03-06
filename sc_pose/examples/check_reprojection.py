@@ -123,19 +123,24 @@ with open(vicon_meta_data,'r',newline='') as csv_f:
         cam_quatVCv = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] )
 
         
-        # Convert Vicon information into a transformation matrix
+        # Convert Vicon information into a transformation matrix from Vicon frame to the Vicon target frame
         R_VTv      = R.from_quat( soho_quatVTv, scalar_first=True ).as_matrix()
         T_VTv      = np.eye(4)
         T_VTv[:3,:3] = R_VTv
         T_VTv[:3,3] = soho_VTv
 
+        # Convert Vicon information into a transformation matrix from Vicon frame to the Vicon camera frame
         R_VCv      = R.from_quat( cam_quatVCv, scalar_first=True ).as_matrix()
         T_VCv      = np.eye(4)
         T_VCv[:3,:3] = R_VCv
         T_VCv[:3,3] = cam_VCv
 
+        # Transformation from vicon camera frame to vicon target frame
         T_CvTv = T_inverse(T_VCv) @ T_VTv
+        # Transformation from true camera frame to true target frame
         T_CT = T_inverse(T_CvC) @ T_CvTv @ T_TvT
+
+        # Extracting quaternion and translation from transformation matrix
         q_CT = R.from_matrix( T_CT[:3,:3] ).as_quat()  # [x, y, z, w]
         q_wxyz = np.roll(q_CT, 1)  
         r_CT = T_CT[:3,3]
