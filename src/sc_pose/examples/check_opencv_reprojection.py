@@ -1,7 +1,6 @@
 """ An example script of how to use the Pinhole Camera model with calibration imagery data, see CamCal repo, that have all the same camera parameters """
 from pathlib import Path
 import json 
-import sys
 import cv2
 from pyparsing import line
 from pyparsing import line
@@ -13,9 +12,9 @@ from numpy.typing import NDArray
 import pdb
 
 # local imports
-from ..mathtils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
-from ..sensors.camera import PinholeCamera
-from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
+from sc_pose.mathtils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
+from sc_pose.sensors.camera import PinholeCamera
+from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
 
 ################################ Helper Functions ################################
@@ -299,14 +298,12 @@ for i, row in opencv_df.iterrows():
     print(f"Processing row {i}: {img_name}")
     img_path    = image_folder / img_name 
     img_outpath = res_path / f"opencv_reproj_{img_base}.png" 
-    pdb.set_trace()
     # extract opencv outputted rotation and translation
     rvec    = np.array([row['rvec_x'], row['rvec_y'], row['rvec_z']])
     tvec    = np.array([row['tvec_x'], row['tvec_y'], row['tvec_z']])
 
     q_T_2_C, r_Co2To_C  = _process_opencv_pose_v01(rvec, tvec)
     R_T_to_C            = q2rotm(q_T_2_C)
-    pdb.set_trace()
 
     Rmats.append(R_T_to_C)
     trs.append(r_Co2To_C)
@@ -349,4 +346,3 @@ img_files       = sorted(os.listdir(image_folder))
 # reproject all loop based on the pose estimates from vicon
 
 print(f'Results located at: {res_path}')
-

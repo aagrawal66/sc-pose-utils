@@ -2,7 +2,6 @@
 import numpy as np
 from pathlib import Path
 import json 
-import sys
 from numpy.typing import NDArray
 import yaml
 import csv
@@ -12,9 +11,9 @@ from scipy.spatial.transform import Rotation as R
 import os 
 
 # local imports
-from ..mathtils.quaternion import rotm2q, q2rotm, q2trfm
-from ..sensors.camera import PinholeCamera
-from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
+from sc_pose.mathtils.quaternion import rotm2q, q2rotm, q2trfm
+from sc_pose.sensors.camera import PinholeCamera
+from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
 
 HERE            = Path(__file__).parent.resolve()

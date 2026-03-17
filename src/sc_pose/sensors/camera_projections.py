@@ -8,8 +8,8 @@ import cv2
 import warnings
 
 # local imports
-from .camera import CameraBase
-from ..mathtils.quaternion import q2trfm, q2rotm
+from sc_pose.sensors.camera import CameraBase
+from sc_pose.mathtils.quaternion import q2trfm, q2rotm
 
 r"""
 Note on passive and active rotations:
