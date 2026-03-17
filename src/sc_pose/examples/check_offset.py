@@ -145,8 +145,12 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT):
     r_Co2To_C       = r_Vo2Co_C - r_Vo2To_C
     
     q_CAMERA_2_TARGET   = q_C_2_T
-    r_Co2To_CAMERA      = r_Co2To_C
+    r_Co2To_CAMERA      = r_Co2To_C * 1e-3
     return q_CAMERA_2_TARGET, r_Co2To_CAMERA
+
+
+def _process_vicon_offset_v03(row, T_CvC, T_TvT):
+    pass 
 
 def _load_offset_estimates(offset_data_path, offset_keys):
     # extract offset estimates from json
@@ -190,12 +194,13 @@ data_folder         = HERE / "artifacts" / "offset" / "expm_001"
 data_name           = data_folder.name
 image_folder        = data_folder / "images"
 skip_csv_header     = True
-kps_file            = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_1000.json" # origin shifted to edge
+# kps_file is in mm
+kps_file            = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_50000.json" # origin shifted to edge
 # kps_centered_file   = 
-opencv_pose_est     = data_folder / "camera_poses.csv"
-vicon_pose_est      = data_folder / "vicon_data.csv"
-# calib_data          = data_folder / "calibration.yaml" # wrong, ANAND EDIT, what?
-calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
+opencv_pose_est     = data_folder / "camera_poses.csv" # attitude and positon in meters
+vicon_pose_est      = data_folder / "vicon_data.csv" # position in mm
+calib_data          = data_folder / "calibration.yaml" # wrong, ANAND EDIT, what?
+# calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
 offset_data         = data_folder / "offset_results.json"
 # setup keys
 res_path            = HERE / "results" / data_name
