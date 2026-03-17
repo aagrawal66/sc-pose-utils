@@ -4,6 +4,7 @@ import json
 import cv2
 from pyparsing import line
 from pyparsing import line
+from sc_pose.examples.check_reprojection_pete import T_TvT
 from scipy.spatial.transform import Rotation as R
 import os 
 import pandas as pd
@@ -150,7 +151,69 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT):
 
 
 def _process_vicon_offset_v03(row, T_CvC, T_TvT):
-    pass 
+        """
+        Process vicon data using passive rotation matrices and translation vectors
+        
+        T_CvC: transformation from Vicon camera frame to true camera frame
+        T_TvT: transformation from Vicon target frame to true target frame
+        """
+    
+        soho_x          = float( row[1] ) * 1E-3
+        soho_y          = float( row[2] ) * 1E-3
+        soho_z          = float( row[3] ) * 1E-3
+        soho_qw         = float( row[4] )
+        soho_qx         = float( row[5] )
+        soho_qy         = float( row[6] )
+        soho_qz         = float( row[7] )
+        soho_TvV        = np.array( [ soho_x, soho_y, soho_z ] ).T
+        soho_quatTvV    = np.array( [ soho_qw, soho_qx, soho_qy, soho_qz ] ).T
+
+        cam_x           = float( row[8] )  * 1E-3
+        cam_y           = float( row[9] )  * 1E-3
+        cam_z           = float( row[10] ) * 1E-3
+        cam_qw          = float( row[11] )
+        cam_qx          = float( row[12] )
+        cam_qy          = float( row[13] )
+        cam_qz          = float( row[14] )
+        cam_CvV         = np.array( [ cam_x, cam_y, cam_z ] ).T
+        cam_quatCvV     = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] ).T
+
+        R_CCv           = T_CvC[:3,:3]
+        R_TTv           = T_TvT[:3,:3]
+        t_CCv           = T_CvC[:3,3]
+        t_TTv           = T_TvT[:3,3]
+        Trfm_TvV        = q2trfm( soho_quatTvV )
+        Trfm_CvV        = q2trfm( cam_quatCvV )
+        Trfm_VTv        = Trfm_TvV.T
+        Trfm_VCv        = Trfm_CvV.T
+        Trfm_CCv        = R_CCv.T
+        Trfm_TTv        = R_TTv.T
+        Trfm_VC         = ( Trfm_CCv @ Trfm_CvV ).T
+        Trfm_VT         = ( Trfm_TTv @ Trfm_TvV ).T
+        
+        # post-offset
+        translation_posto   = Trfm_VC.T \
+                            @ ( \
+                                ( soho_TvV + Trfm_VTv @ t_TTv ) \
+                              - ( cam_CvV  + Trfm_VCv @ t_CCv ) \
+                            )
+        Trfm_TC_posto       = ( Trfm_VT.T @ Trfm_VC )
+        quaternion_posto    = rotm2q( Trfm_TC_posto.T )
+
+        r_Co2To_CAM         = translation_posto
+        q_TARGET_2_CAM      = quaternion_posto
+
+        # # pre-offset
+        # translation_preo    = Trfm_CvV \
+        #                     @ ( \
+        #                         soho_TvV  \
+        #                       - cam_CvV   \
+        #                     )
+        # Trfm_TC_preo        =  ( Trfm_TvV @ Trfm_CvV.T )
+        # quaternion_preo     = rotm2q( Trfm_TC_preo.T )
+
+        return q_TARGET_2_CAM, r_Co2To_CAM
+
 
 def _load_offset_estimates(offset_data_path, offset_keys):
     # extract offset estimates from json
