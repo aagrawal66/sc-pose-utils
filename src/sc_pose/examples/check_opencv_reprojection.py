@@ -153,8 +153,8 @@ def _load_offset_estimates(offset_data_path, offset_keys):
     with open(offset_data_path, 'r') as f:
         offset_json                         = json.load(f)
     offset_key_list                     = list(offset_keys)
-    CV_C_key                            = offset_key_list[0] # "Trf_4x4_CamViconDef_Cam"
-    TV_T_key                            = offset_key_list[1] # "Trf_4x4_TargetViconDef_Target"
+    CV_C_key                            = offset_keys[offset_key_list[0]] # "Trf_4x4_CamViconDef_Cam"
+    TV_T_key                            = offset_keys[offset_key_list[1]] # "Trf_4x4_TargetViconDef_Target"
     Trf4x4_CAMVICON_2_CAM_TRUE          = np.array( offset_json[CV_C_key] )
     Trf4x4_TARGETVICON_2_TARGET_TRUE    = np.array( offset_json[TV_T_key] )
     
@@ -275,8 +275,9 @@ with open(kps_file, 'r') as f:
 # add origin to start of kps
 target_BFF_pts_with_origin  = np.vstack( (np.zeros((1,3)), target_BFF_pts) ) 
 
-opencv_df   = pd.read_csv(opencv_pose_est)
-vicon_df    = pd.read_csv(vicon_pose_est)
+opencv_df       = pd.read_csv(opencv_pose_est)
+vicon_df        = pd.read_csv(vicon_pose_est)
+
 
 # extract opencv pose estimates
 
@@ -339,9 +340,60 @@ for i, row in opencv_df.iterrows():
                                         )
     cv2.imwrite(img_outpath, img_out)
 
+    try:
+        vicon_row       = vicon_df[vicon_df[vicon_keys['frame']] == img_num]
+        vicon_series    = vicon_df.iloc[0, :]
+        vicon_values    = vicon_series.values
+    except KeyError:
+        print(f"Image number {img_num} for {img_name} not found in vicon data, skipping...")
+        continue
+    
+    vicon_img_outpath       = res_path / f"vicon_reproj_{img_base}.png" 
+    combined_img_out_path   = res_path / f"combined_reproj_{img_base}.png" 
+    # uv_cam_vicon = proj.classless_pinhole_project_to_image(
+    Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE    = _load_offset_estimates(offset_data_path = offset_data, offset_keys = offset_keys)
+    q_proc_T_2_C, r_proc_Co2To_C                                    = _process_vicon_offset_v01(
+                                                                                                    row = vicon_values,
+                                                                                                    T_CvC = Trf4x4_CAMVICON_2_CAM_TRUE,
+                                                                                                    T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE
+                                                                                                )
+    uv_cam_vicon    = proj.classless_pinhole_project_to_image(
+                                                                q_TARGET_2_CAM    = q_proc_T_2_C,
+                                                                r_Co2To_CAM       = r_proc_Co2To_C,
+                                                                Kmat              = Kmat_cal,
+                                                                BC_dist_coeffs    = dist_coeffs,
+                                                                points_xyz_TARGET = target_BFF_pts_with_origin
+                                                            )
+    img_vicon_out   = draw_uv_points_on_image(
+                                                img_or_path     = str(img_path),
+                                                points_uv       = uv_cam_vicon,
+                                                point_color     = (255, 0, 0),
+                                                point_radius    = 15, 
+                                                point_thickness = 2
+                                            )
+    # highlight origin point in a different color
+    uv_origin_vicon = uv_cam_vicon[0]  # assuming the first point is the origin
+    img_vicon_out   = draw_uv_points_on_image(
+                                                img_or_path     = img_vicon_out,
+                                                points_uv       = uv_origin_vicon.reshape(1, 2),
+                                                point_color     = (0, 255, 0),  # Green for origin
+                                                point_radius    = 20, 
+                                                point_thickness = 3
+                                            )
+    cv2.imwrite(vicon_img_outpath, img_vicon_out)
+    # combined
+    img_overlay_out = draw_uv_points_on_image(
+                                                img_or_path     = img_out,
+                                                points_uv       = uv_cam_vicon,
+                                                point_color     = (128, 0, 128),
+                                                point_radius    = 17, 
+                                                point_thickness = 3
+                                            )
+    cv2.imwrite(combined_img_out_path, img_overlay_out)
+
+
 trs_array       = np.array(trs)  # (N, 3)
 Rmats_array     = np.array(Rmats)  # (N, 3, 3)
-img_files       = sorted(os.listdir(image_folder))
 
 # reproject all loop based on the pose estimates from vicon
 
