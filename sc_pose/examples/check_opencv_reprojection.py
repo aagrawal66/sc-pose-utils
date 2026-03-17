@@ -1,14 +1,13 @@
 """ An example script of how to use the Pinhole Camera model with calibration imagery data, see CamCal repo, that have all the same camera parameters """
 from pathlib import Path
 import json 
-import yaml
-import csv
 import cv2
-import pdb
 from scipy.spatial.transform import Rotation as R
 import os 
 import pandas as pd
 import numpy as np
+from numpy.typing import NDArray
+import pdb
 
 # local imports
 from sc_pose.math_utils.quaternion import rotm2q, q2rotm, q2trfm
@@ -69,6 +68,25 @@ vicon_keys      = {
                 }
 ##################################### Inputs #####################################
 
+
+################################ Helper Functions ################################
+def Trfm_4x4_inverse(T: NDArray) -> NDArray:
+    """ Invert a homogeneous transformation matrix """
+    R               = T[:3,:3]
+    t               = T[:3,3]
+    R_inv           = R.T
+    t_inv           = -R_inv @ t
+    T_inv           = np.eye(4)
+    T_inv[:3,:3]    = R_inv
+    T_inv[:3,3]     = t_inv
+    return T_inv
+################################ Helper Functions ################################
+
+
+
+
+
+
 # make results path
 os.makedirs(res_path, exist_ok = True)
 
@@ -105,22 +123,22 @@ opencv_df   = pd.read_csv(opencv_pose_est)
 vicon_df    = pd.read_csv(vicon_pose_est)
 
 # extract opencv pose estimates
-# trs_array       = np.array(trs)  # (N, 3)
-# Rmats_array     = np.array(Rmats)  # (N, 3, 3)
-# img_files       = sorted(os.listdir(image_folder))
-# Rmats               = [] 
-# trs                 = []
-# img_paths           = []
 
 # extract vicon pose estimates
 
 
 # load both opencv and vicon data into dataframes
-# 2. Iterate through rows using itertuples for speed and clean access
+# iterate through rows
+Rmats           = [] 
+trs             = []
+img_paths       = []
+img_nums        = []
+
+
 for i, row in opencv_df.iterrows():
     img_name    = row['frame']
     img_base    = Path(img_name).stem 
-    img_num     = img_base.split("_")[-1]
+    img_num     = int(img_base.split("_")[-1])
     print(f"Processing row {i}: {img_name}")
     img_path    = image_folder / img_name 
     img_outpath = res_path / f"opencv_reproj_{img_base}.png" 
@@ -137,6 +155,15 @@ for i, row in opencv_df.iterrows():
     q_TC    = np.roll(q_xyzw, 1)
     # Translation (Camera to Target in Camera frame)
     r_CT    = tvec
+
+    R_T_to_C, _     = cv2.Rodrigues(rvec)
+    q_T_to_C        = rotm2q(R_T_to_C)
+    T_Co2To_C       = tvec
+
+    Rmats.append(R_T_to_C)
+    trs.append(T_Co2To_C)
+    img_paths.append(img_path)
+    img_nums.append(img_num)
 
     # project 3D points to 2D image coordinates
     uv_cam  = proj.classless_pinhole_project_to_image(
@@ -166,6 +193,10 @@ for i, row in opencv_df.iterrows():
                                             point_thickness = 3
                                         )
     cv2.imwrite(img_outpath, img_out)
+
+trs_array       = np.array(trs)  # (N, 3)
+Rmats_array     = np.array(Rmats)  # (N, 3, 3)
+img_files       = sorted(os.listdir(image_folder))
 
 print(f'Results located at: {res_path}')
 
