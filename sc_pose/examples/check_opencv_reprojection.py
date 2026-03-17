@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 import pdb
 
 # local imports
-from sc_pose.math_utils.quaternion import rotm2q, q2rotm, q2trfm
+from sc_pose.math_utils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
 from sc_pose.sensors.camera import PinholeCamera
 from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
@@ -70,16 +70,57 @@ vicon_keys      = {
 
 
 ################################ Helper Functions ################################
-def Trfm_4x4_inverse(T: NDArray) -> NDArray:
-    """ Invert a homogeneous transformation matrix """
-    R               = T[:3,:3]
-    t               = T[:3,3]
-    R_inv           = R.T
-    t_inv           = -R_inv @ t
-    T_inv           = np.eye(4)
-    T_inv[:3,:3]    = R_inv
-    T_inv[:3,3]     = t_inv
-    return T_inv
+def Trfm_4x4_inverse(T4x4: NDArray) -> NDArray:
+    """ 
+    Invert a 4x4 homogeneous transformation matrix
+    of the form:
+    [ R | t ]
+    [ 0 | 1 ]
+    where R is a 3x3 rotation matrix and t is a 3x1 translation vector.
+    The inverse is given by:
+    [ R^T | -R^T t ]
+    [ 0   | 1       ] 
+    """
+    Rmat            = T4x4[:3,:3]
+    tvec            = T4x4[:3,3]
+    Rmat_inv        = Rmat.T
+    t_inv           = -Rmat_inv @ tvec
+    T4x4_inv        = np.eye(4)
+    T4x4_inv[:3,:3] = Rmat_inv
+    T4x4_inv[:3,3]  = t_inv
+    return T4x4_inv
+
+def _process_vicon_cam_tar_v1():
+
+    pass
+
+def _process_vicon_cam_tar_v2(row):
+    # assuming error in Vicon frame definitions
+    # CT: Camera Tilde frame
+    # TT: Target Tilde frame
+    # VICON: Vicon frame
+    # we have transformations from VICON to both CT and TT
+    # we want to find the transformation from CT to TT
+    r_Vo2CTo_VICON  = np.array([row[vicon_keys['x_cam']], row[vicon_keys['y_cam']], row[vicon_keys['z_cam']]])
+    q_VICON_2_CT    = np.array([row[vicon_keys['qw_cam']], row[vicon_keys['qx_cam']], row[vicon_keys['qy_cam']], row[vicon_keys['qz_cam']]])
+    r_Vo2TTo_VICON  = np.array([row[vicon_keys['x_target']], row[vicon_keys['y_target']], row[vicon_keys['z_target']]])
+    q_VICON_2_TT    = np.array([row[vicon_keys['qw_target']], row[vicon_keys['qx_target']], row[vicon_keys['qy_target']], row[vicon_keys['qz_target']]])
+    # we want q_TARGET_TILDE_2_CAM_TILDE and r_CTo2To_CAM_TILDE
+    q_TT_2_CT       = q_mult_shu(q2 = q_VICON_2_CT, q1 = q_conj(q_VICON_2_TT))
+    r_CTo2TTo_CT    = q2trfm(q_VICON_2_CT) @ ( r_Vo2TTo_VICON - r_Vo2CTo_VICON)
+    return q_TT_2_CT, r_CTo2TTo_CT
+
+def _load_offset_estimates():
+    pass
+
+def _process_vicon_offset_v1():
+    pass
+
+def _process_vicon_offset_v2():
+    pass
+
+def _process_vicon_offset_v3():
+    pass
 ################################ Helper Functions ################################
 
 
