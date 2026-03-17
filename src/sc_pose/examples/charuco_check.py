@@ -8,7 +8,7 @@ import cv2
 import pdb
 
 # local imports
-from ..mathtils.math_utils.quaternion import rotm2q
+from ..mathtils.quaternion import rotm2q
 from ..sensors.camera import PinholeCamera
 from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 

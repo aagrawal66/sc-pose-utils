@@ -9,7 +9,7 @@ import warnings
 
 # local imports
 from .camera import CameraBase
-from ..mathtils.math_utils.quaternion import q2trfm, q2rotm
+from ..mathtils.quaternion import q2trfm, q2rotm
 
 r"""
 Note on passive and active rotations:
@@ -290,4 +290,3 @@ def draw_uv_points_on_image(
     print(f"total points skipped (out of bounds or invalid) out of {num_pts}: ", total_skipped)
     
     return img_bgr
-

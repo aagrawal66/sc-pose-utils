@@ -12,7 +12,7 @@ from scipy.spatial.transform import Rotation as R
 import os 
 
 # local imports
-from ..mathtils.math_utils.quaternion import rotm2q, q2rotm, q2trfm
+from ..mathtils.quaternion import rotm2q, q2rotm, q2trfm
 from ..sensors.camera import PinholeCamera
 from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 

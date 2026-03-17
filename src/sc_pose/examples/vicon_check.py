@@ -7,7 +7,7 @@ import cv2
 import pdb
 
 # local imports
-from ..mathtils.math_utils.quaternion import q2trfm, q_mult_shu, q_conj
+from ..mathtils.quaternion import q2trfm, q_mult_shu, q_conj
 from ..sensors.camera import PinholeCamera
 from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 

@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 import pdb
 
 # local imports
-from ..mathtils.math_utils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
+from ..mathtils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
 from ..sensors.camera import PinholeCamera
 from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
@@ -161,6 +161,27 @@ def _load_offset_estimates(offset_data_path, offset_keys):
     
     return Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE
 
+def _process_opencv_pose_v01(rvec, tvec):
+    """" processing opencv pose estimates using scipy """
+    rot                 = R.from_rotvec(rvec).as_matrix()
+    Rt                  = R.from_matrix(rot)
+    q_xyzw              = Rt.as_quat()
+    q_TC                = np.roll(q_xyzw, 1)
+    r_CT                = tvec
+    q_TARGET_2_CAMERA   = q_TC
+    r_Co2To_CAMERA      = r_CT
+    return q_TARGET_2_CAMERA, r_Co2To_CAMERA
+
+def _process_opencv_pose_v02(rvec, tvec):
+    """ processing opencv pose estimates using cv2 """
+    R_T_to_C, _         = cv2.Rodrigues(rvec)
+    q_T_to_C            = rotm2q(R_T_to_C)
+    r_Co2To_C           = tvec
+    q_TARGET_2_CAMERA   = q_T_to_C
+    r_Co2To_CAMERA      = r_Co2To_C
+    return q_TARGET_2_CAMERA, r_Co2To_CAMERA
+
+
 ################################ Helper Functions ################################
 
 
@@ -270,7 +291,7 @@ trs             = []
 img_paths       = []
 img_nums        = []
 
-pdb.set_trace()
+# matched loop
 for i, row in opencv_df.iterrows():
     img_name    = row['frame']
     img_base    = Path(img_name).stem 
@@ -278,35 +299,24 @@ for i, row in opencv_df.iterrows():
     print(f"Processing row {i}: {img_name}")
     img_path    = image_folder / img_name 
     img_outpath = res_path / f"opencv_reproj_{img_base}.png" 
-    
+    pdb.set_trace()
     # extract opencv outputted rotation and translation
     rvec    = np.array([row['rvec_x'], row['rvec_y'], row['rvec_z']])
     tvec    = np.array([row['tvec_x'], row['tvec_y'], row['tvec_z']])
 
-    # convert to left scalar first quaternion
-    # covert rotation vector to rotation matrix, active rotation from target to camera
-    rot     = R.from_rotvec(rvec).as_matrix() 
-    Rt      = R.from_matrix(rot)
-    q_xyzw  = Rt.as_quat()
-    q_TC    = np.roll(q_xyzw, 1)
-    # Translation (Camera to Target in Camera frame)
-    r_CT    = tvec
-
-    R_T_to_C, _     = cv2.Rodrigues(rvec)
-    q_T_to_C        = rotm2q(R_T_to_C)
-    T_Co2To_C       = tvec
-    
+    q_T_2_C, r_Co2To_C  = _process_opencv_pose_v01(rvec, tvec)
+    R_T_to_C            = q2rotm(q_T_2_C)
     pdb.set_trace()
 
     Rmats.append(R_T_to_C)
-    trs.append(T_Co2To_C)
+    trs.append(r_Co2To_C)
     img_paths.append(img_path)
     img_nums.append(img_num)
 
     # project 3D points to 2D image coordinates
     uv_cam  = proj.classless_pinhole_project_to_image(
-                                                        q_TARGET_2_CAM    = q_TC,
-                                                        r_Co2To_CAM       = r_CT,
+                                                        q_TARGET_2_CAM    = q_T_2_C,
+                                                        r_Co2To_CAM       = r_Co2To_C,
                                                         Kmat              = Kmat_cal,
                                                         BC_dist_coeffs    = dist_coeffs,
                                                         points_xyz_TARGET = target_BFF_pts_with_origin 
@@ -335,6 +345,8 @@ for i, row in opencv_df.iterrows():
 trs_array       = np.array(trs)  # (N, 3)
 Rmats_array     = np.array(Rmats)  # (N, 3, 3)
 img_files       = sorted(os.listdir(image_folder))
+
+# reproject all loop based on the pose estimates from vicon
 
 print(f'Results located at: {res_path}')
 
