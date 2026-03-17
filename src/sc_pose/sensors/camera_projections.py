@@ -8,8 +8,8 @@ import cv2
 import warnings
 
 # local imports
-from sc_pose.sensors.camera import CameraBase
-from sc_pose.math_utils.quaternion import q2trfm, q2rotm
+from .camera import CameraBase
+from ..mathtils.math_utils.quaternion import q2trfm, q2rotm
 
 r"""
 Note on passive and active rotations:
@@ -290,5 +290,4 @@ def draw_uv_points_on_image(
     print(f"total points skipped (out of bounds or invalid) out of {num_pts}: ", total_skipped)
     
     return img_bgr
-
 

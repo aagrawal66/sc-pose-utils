@@ -1,4 +1,5 @@
 """ An example script of how to use Pinhole Camera model with Vicon data """
+import sys
 import numpy as np
 from pathlib import Path
 import pandas as pd
@@ -6,9 +7,9 @@ import cv2
 import pdb
 
 # local imports
-from sc_pose.math.quaternion import q2trfm, q_mult_shu, q_conj
-from sc_pose.sensors.camera import PinholeCamera
-from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
+from ..mathtils.math_utils.quaternion import q2trfm, q_mult_shu, q_conj
+from ..sensors.camera import PinholeCamera
+from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
 
 HERE            = Path(__file__).parent.resolve()

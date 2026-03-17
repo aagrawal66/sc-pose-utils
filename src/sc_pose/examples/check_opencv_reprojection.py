@@ -1,6 +1,7 @@
 """ An example script of how to use the Pinhole Camera model with calibration imagery data, see CamCal repo, that have all the same camera parameters """
 from pathlib import Path
 import json 
+import sys
 import cv2
 from pyparsing import line
 from pyparsing import line
@@ -12,9 +13,9 @@ from numpy.typing import NDArray
 import pdb
 
 # local imports
-from sc_pose.math_utils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
-from sc_pose.sensors.camera import PinholeCamera
-from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
+from ..mathtils.math_utils.quaternion import rotm2q, q2rotm, q2trfm, q_mult_shu, q_conj
+from ..sensors.camera import PinholeCamera
+from ..sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
 
 ################################ Helper Functions ################################
@@ -306,5 +307,4 @@ Rmats_array     = np.array(Rmats)  # (N, 3, 3)
 img_files       = sorted(os.listdir(image_folder))
 
 print(f'Results located at: {res_path}')
-
 
