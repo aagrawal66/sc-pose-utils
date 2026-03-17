@@ -2,9 +2,6 @@
 from pathlib import Path
 import json 
 import cv2
-from pyparsing import line
-from pyparsing import line
-from sc_pose.examples.check_reprojection_pete import T_TvT
 from scipy.spatial.transform import Rotation as R
 import os 
 import pandas as pd
@@ -39,30 +36,30 @@ def Trfm_4x4_inverse(T4x4: NDArray) -> NDArray:
     T4x4_inv[:3,3]  = t_inv
     return T4x4_inv
 
-def _process_vicon_offset_v01(row, T_CvC, T_TvT):
+def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     """ 
     Process vicon data using 4x4 Homogeneous transformation matrices
     
     T_CvC: transformation from Vicon camera frame to true camera frame
     T_TvT: transformation from Vicon target frame to true target frame
     """
-    soho_x          = float( row[1] ) * 1E-3
-    soho_y          = float( row[2] ) * 1E-3
-    soho_z          = float( row[3] ) * 1E-3
-    soho_qw         = float( row[4] )
-    soho_qx         = float( row[5] )
-    soho_qy         = float( row[6] )
-    soho_qz         = float( row[7] )
+    soho_x          = float(row[vicon_keys['x_target']]) * 1E-3
+    soho_y          = float(row[vicon_keys['y_target']]) * 1E-3
+    soho_z          = float(row[vicon_keys['z_target']]) * 1E-3
+    soho_qw         = float(row[vicon_keys['qw_target']])
+    soho_qx         = float(row[vicon_keys['qx_target']])
+    soho_qy         = float(row[vicon_keys['qy_target']])
+    soho_qz         = float(row[vicon_keys['qz_target']])
     soho_VTv        = np.array( [ soho_x, soho_y, soho_z ] )
     soho_quatVTv    = np.array( [ soho_qw, soho_qx, soho_qy, soho_qz ] )
 
-    cam_x           = float( row[8] )  * 1E-3
-    cam_y           = float( row[9] )  * 1E-3
-    cam_z           = float( row[10] ) * 1E-3
-    cam_qw          = float( row[11] )
-    cam_qx          = float( row[12] )
-    cam_qy          = float( row[13] )
-    cam_qz          = float( row[14] )
+    cam_x           = float(row[vicon_keys['x_cam']]) * 1E-3
+    cam_y           = float(row[vicon_keys['y_cam']]) * 1E-3
+    cam_z           = float(row[vicon_keys['z_cam']]) * 1E-3
+    cam_qw          = float(row[vicon_keys['qw_cam']])
+    cam_qx          = float(row[vicon_keys['qx_cam']])
+    cam_qy          = float(row[vicon_keys['qy_cam']])
+    cam_qz          = float(row[vicon_keys['qz_cam']])
     cam_VCv         = np.array( [ cam_x, cam_y, cam_z ] )
     cam_quatVCv     = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] )
 
@@ -96,7 +93,7 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT):
 
     return q_CAMERA_2_TARGET, r_Co2To_CAMERA
 
-def _process_vicon_offset_v02(row, T_CvC, T_TvT):
+def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     """
     Process vicon data using passive rotation matricies and translation vectors
     
@@ -150,7 +147,7 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT):
     return q_CAMERA_2_TARGET, r_Co2To_CAMERA
 
 
-def _process_vicon_offset_v03(row, T_CvC, T_TvT):
+def _process_vicon_offset_v03(row, T_CvC, T_TvT, vicon_keys):
         """
         Process vicon data using passive rotation matrices and translation vectors
         
@@ -158,23 +155,23 @@ def _process_vicon_offset_v03(row, T_CvC, T_TvT):
         T_TvT: transformation from Vicon target frame to true target frame
         """
     
-        soho_x          = float( row[1] ) * 1E-3
-        soho_y          = float( row[2] ) * 1E-3
-        soho_z          = float( row[3] ) * 1E-3
-        soho_qw         = float( row[4] )
-        soho_qx         = float( row[5] )
-        soho_qy         = float( row[6] )
-        soho_qz         = float( row[7] )
+        soho_x          = float(row[vicon_keys['x_target']]) * 1E-3
+        soho_y          = float(row[vicon_keys['y_target']]) * 1E-3
+        soho_z          = float(row[vicon_keys['z_target']]) * 1E-3
+        soho_qw         = float(row[vicon_keys['qw_target']])
+        soho_qx         = float(row[vicon_keys['qx_target']])
+        soho_qy         = float(row[vicon_keys['qy_target']])
+        soho_qz         = float(row[vicon_keys['qz_target']])
         soho_TvV        = np.array( [ soho_x, soho_y, soho_z ] ).T
         soho_quatTvV    = np.array( [ soho_qw, soho_qx, soho_qy, soho_qz ] ).T
 
-        cam_x           = float( row[8] )  * 1E-3
-        cam_y           = float( row[9] )  * 1E-3
-        cam_z           = float( row[10] ) * 1E-3
-        cam_qw          = float( row[11] )
-        cam_qx          = float( row[12] )
-        cam_qy          = float( row[13] )
-        cam_qz          = float( row[14] )
+        cam_x           = float(row[vicon_keys['x_cam']]) * 1E-3
+        cam_y           = float(row[vicon_keys['y_cam']]) * 1E-3
+        cam_z           = float(row[vicon_keys['z_cam']]) * 1E-3
+        cam_qw          = float(row[vicon_keys['qw_cam']])
+        cam_qx          = float(row[vicon_keys['qx_cam']])
+        cam_qy          = float(row[vicon_keys['qy_cam']])
+        cam_qz          = float(row[vicon_keys['qz_cam']])
         cam_CvV         = np.array( [ cam_x, cam_y, cam_z ] ).T
         cam_quatCvV     = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] ).T
 
@@ -248,221 +245,266 @@ def _process_opencv_pose_v02(rvec, tvec):
     return q_TARGET_2_CAMERA, r_Co2To_CAMERA
 
 
-################################ Helper Functions ################################
-
-
-HERE                = Path(__file__).parent.resolve()
-##################################### Inputs #####################################
-data_folder         = HERE / "artifacts" / "offset" / "expm_001"
-data_name           = data_folder.name
-image_folder        = data_folder / "images"
-skip_csv_header     = True
-# kps_file is in mm
-kps_file            = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_50000.json" # origin shifted to edge
-# kps_centered_file   = 
-opencv_pose_est     = data_folder / "camera_poses.csv" # attitude and positon in meters
-vicon_pose_est      = data_folder / "vicon_data.csv" # position in mm
-calib_data          = data_folder / "calibration.yaml" # wrong, ANAND EDIT, what?
-# calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
-offset_data         = data_folder / "offset_results.json"
-# setup keys
-res_path            = HERE / "results" / data_name
-
-# camera parameters 
-img_width       = 4096 
-img_height      = 3000
-focal_length    = 25.0  # in mm 
-sensor_width    = 14.13  # in mm
-sensor_height   = 10.35 # in mm
-
-# opencv_keys
-opencv_keys     = {
-                    'frame': 'frame',
-                    'rvec_x': 'rvec_x',
-                    'rvec_y': 'rvec_y',
-                    'rvec_z': 'rvec_z',
-                    'tvec_x': 'tvec_x',
-                    'tvec_y': 'tvec_y',
-                    'tvec_z': 'tvec_z'
-                }
-# vicon keys
-vicon_keys      = {
-                    'frame': 'image_number',
-                    'x_target': 'soho_x',
-                    'y_target': 'soho_y',
-                    'z_target': 'soho_z',
-                    'qw_target': 'soho_qw',
-                    'qx_target': 'soho_qx',
-                    'qy_target': 'soho_qy',
-                    'qz_target': 'soho_qz',
-                    'x_cam': 'basler_x',
-                    'y_cam': 'basler_y',
-                    'z_cam': 'basler_z',
-                    'qw_cam': 'basler_qw',
-                    'qx_cam': 'basler_qx',
-                    'qy_cam': 'basler_qy',
-                    'qz_cam': 'basler_qz'
-                }
-
-# offset keys
-offset_keys     = {
-                    'Trf_4x4_CamViconDef_Cam': 'T_CvC',
-                    'Trf_4x4_TargetViconDef_Target': 'T_TvT'
-                }
-##################################### Inputs #####################################
-
-# make results path
-os.makedirs(res_path, exist_ok = True)
-
-
-# create projection object
-cam     = PinholeCamera(
-                            sensor_width_mm = sensor_width,
-                            sensor_height_mm = sensor_height,
-                            image_width_px  = img_width,
-                            image_height_px = img_height,
-                            focal_length_mm = focal_length
-                        )
-# cam.print_state()
-
-# set calibration
-cam.set_calibration_yaml(calib_data)
-Kmat_cal    = cam.calc_Kmat()
-dist_coeffs = cam._dist_coeffs_as_array()
-proj        = PoseProjector(camera = cam)
-
-
-
-
-# kps from drew/anand
-with open(kps_file, 'r') as f:
-    kps_mm          = np.array( json.load(f) ) # obj in mm
-    kps_m           = kps_mm / 1e3
-    target_BFF_pts  = kps_m
-
-# add origin to start of kps
-target_BFF_pts_with_origin  = np.vstack( (np.zeros((1,3)), target_BFF_pts) ) 
-
-opencv_df       = pd.read_csv(opencv_pose_est)
-vicon_df        = pd.read_csv(vicon_pose_est)
-
-
-# extract opencv pose estimates
-
-# extract vicon pose estimates
-
-
-# load both opencv and vicon data into dataframes
-# iterate through rows
-Rmats           = [] 
-trs             = []
-img_paths       = []
-img_nums        = []
-
-# matched loop
-for i, row in opencv_df.iterrows():
-    img_name    = row['frame']
-    img_base    = Path(img_name).stem 
-    img_num     = int(img_base.split("_")[-1])
-    print(f"Processing row {i}: {img_name}")
-    img_path    = image_folder / img_name 
-    img_outpath = res_path / f"opencv_reproj_{img_base}.png" 
-    # extract opencv outputted rotation and translation
-    rvec    = np.array([row['rvec_x'], row['rvec_y'], row['rvec_z']])
-    tvec    = np.array([row['tvec_x'], row['tvec_y'], row['tvec_z']])
-
-    q_T_2_C, r_Co2To_C  = _process_opencv_pose_v01(rvec, tvec)
-    R_T_to_C            = q2rotm(q_T_2_C)
-
-    Rmats.append(R_T_to_C)
-    trs.append(r_Co2To_C)
-    img_paths.append(img_path)
-    img_nums.append(img_num)
-
-    # project 3D points to 2D image coordinates
-    uv_cam  = proj.classless_pinhole_project_to_image(
-                                                        q_TARGET_2_CAM    = q_T_2_C,
-                                                        r_Co2To_CAM       = r_Co2To_C,
-                                                        Kmat              = Kmat_cal,
-                                                        BC_dist_coeffs    = dist_coeffs,
-                                                        points_xyz_TARGET = target_BFF_pts_with_origin 
-                                                    )
-    
-    # draw the points and save the verification image
-    # Using str(img_path) to ensure compatibility with cv2/drawing functions
-    img_out = draw_uv_points_on_image(
-                                        img_or_path     = str(img_path),
-                                        points_uv       = uv_cam,
-                                        point_color     = (0, 0, 255),
-                                        point_radius    = 15, 
-                                        point_thickness = 2
-                                    )
-    # highlight origin point in a different color
-    uv_origin   = uv_cam[0]  # assuming the first point is the origin
-    img_out     = draw_uv_points_on_image(
-                                            img_or_path     = img_out,
-                                            points_uv       = uv_origin.reshape(1, 2),
-                                            point_color     = (0, 255, 0),  # Green for origin
-                                            point_radius    = 20, 
-                                            point_thickness = 3
-                                        )
-    cv2.imwrite(img_outpath, img_out)
-
+def _select_processor(processor_name, processor_map, processor_kind):
+    """ resolve a version string from the Inputs section into a callable function """
     try:
-        vicon_row       = vicon_df[vicon_df[vicon_keys['frame']] == img_num]
-        vicon_series    = vicon_df.iloc[0, :]
-        vicon_values    = vicon_series.values
-    except KeyError:
-        print(f"Image number {img_num} for {img_name} not found in vicon data, skipping...")
-        continue
-    
-    vicon_img_outpath       = res_path / f"vicon_reproj_{img_base}.png" 
-    combined_img_out_path   = res_path / f"combined_reproj_{img_base}.png" 
-    # uv_cam_vicon = proj.classless_pinhole_project_to_image(
-    Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE    = _load_offset_estimates(offset_data_path = offset_data, offset_keys = offset_keys)
-    q_proc_T_2_C, r_proc_Co2To_C                                    = _process_vicon_offset_v01(
-                                                                                                    row = vicon_values,
-                                                                                                    T_CvC = Trf4x4_CAMVICON_2_CAM_TRUE,
-                                                                                                    T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE
-                                                                                                )
-    uv_cam_vicon    = proj.classless_pinhole_project_to_image(
-                                                                q_TARGET_2_CAM    = q_proc_T_2_C,
-                                                                r_Co2To_CAM       = r_proc_Co2To_C,
-                                                                Kmat              = Kmat_cal,
-                                                                BC_dist_coeffs    = dist_coeffs,
-                                                                points_xyz_TARGET = target_BFF_pts_with_origin
-                                                            )
-    img_vicon_out   = draw_uv_points_on_image(
-                                                img_or_path     = str(img_path),
-                                                points_uv       = uv_cam_vicon,
-                                                point_color     = (255, 0, 0),
-                                                point_radius    = 15, 
-                                                point_thickness = 2
-                                            )
-    # highlight origin point in a different color
-    uv_origin_vicon = uv_cam_vicon[0]  # assuming the first point is the origin
-    img_vicon_out   = draw_uv_points_on_image(
-                                                img_or_path     = img_vicon_out,
-                                                points_uv       = uv_origin_vicon.reshape(1, 2),
+        return processor_map[processor_name]
+    except KeyError as exc:
+        available   = ", ".join(sorted(processor_map))
+        raise ValueError(
+            f"Unknown {processor_kind} '{processor_name}'. Expected one of: {available}"
+        ) from exc
+
+
+################################ Helper Functions ################################
+def main():
+    HERE                = Path(__file__).parent.resolve()
+    ##################################### Inputs #####################################
+    data_folder         = HERE / "artifacts" / "offset" / "expm_001"
+    data_name           = data_folder.name
+    image_folder        = data_folder / "images"
+    skip_csv_header     = True
+    # kps_file is in mm
+    kps_file            = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_50000.json" # origin shifted to edge
+    # kps_centered_file   = 
+    opencv_pose_est     = data_folder / "camera_poses.csv" # attitude and positon in meters
+    vicon_pose_est      = data_folder / "vicon_data.csv" # position in mm
+    calib_data          = data_folder / "calibration.yaml" # wrong, ANAND EDIT, what?
+    # calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
+    offset_data         = data_folder / "offset_results.json"
+    # setup keys
+    res_path            = HERE / "results" / data_name
+
+    # choose type of vicon and opencv pose processing
+    selected_vicon_offset_processor = "v01"  # options: v01, v02, v03
+    selected_opencv_pose_processor  = "v01"  # options: v01, v02
+
+
+    # camera parameters 
+    img_width       = 4096 
+    img_height      = 3000
+    focal_length    = 25.0  # in mm 
+    sensor_width    = 14.13  # in mm
+    sensor_height   = 10.35 # in mm
+
+    # opencv_keys
+    opencv_keys     = {
+                        'frame': 'frame',
+                        'rvec_x': 'rvec_x',
+                        'rvec_y': 'rvec_y',
+                        'rvec_z': 'rvec_z',
+                        'tvec_x': 'tvec_x',
+                        'tvec_y': 'tvec_y',
+                        'tvec_z': 'tvec_z'
+                    }
+    # vicon keys
+    vicon_keys      = {
+                        'frame': 'image_number',
+                        'x_target': 'soho_x',
+                        'y_target': 'soho_y',
+                        'z_target': 'soho_z',
+                        'qw_target': 'soho_qw',
+                        'qx_target': 'soho_qx',
+                        'qy_target': 'soho_qy',
+                        'qz_target': 'soho_qz',
+                        'x_cam': 'cam_x',
+                        'y_cam': 'cam_y',
+                        'z_cam': 'cam_z',
+                        'qw_cam': 'cam_qw',
+                        'qx_cam': 'cam_qx',
+                        'qy_cam': 'cam_qy',
+                        'qz_cam': 'cam_qz'
+                    }
+
+    # offset keys
+    offset_keys     = {
+                        'Trf_4x4_CamViconDef_Cam': 'T_CvC',
+                        'Trf_4x4_TargetViconDef_Target': 'T_TvT'
+                    }
+    ##################################### Inputs #####################################
+
+    ############################## Secondary Input Setup #############################
+
+
+    vicon_offset_processors = {
+                                "v01": _process_vicon_offset_v01,
+                                "v02": _process_vicon_offset_v02,
+                                "v03": _process_vicon_offset_v03
+                            }
+
+    opencv_pose_processors  = {
+                                "v01": _process_opencv_pose_v01,
+                                "v02": _process_opencv_pose_v02
+                            }
+
+    process_vicon_offset    = _select_processor(
+                                                    selected_vicon_offset_processor,
+                                                    vicon_offset_processors,
+                                                    "vicon offset pose processor"
+                                                )
+    process_opencv_pose     = _select_processor(
+                                                    selected_opencv_pose_processor,
+                                                    opencv_pose_processors,
+                                                    "opencv pose processor"
+                                                )
+    ############################## Secondary Input Setup #############################
+    # make results path
+    os.makedirs(res_path, exist_ok = True)
+
+
+    # create projection object
+    cam     = PinholeCamera(
+                                sensor_width_mm = sensor_width,
+                                sensor_height_mm = sensor_height,
+                                image_width_px  = img_width,
+                                image_height_px = img_height,
+                                focal_length_mm = focal_length
+                            )
+    # cam.print_state()
+
+    # set calibration
+    cam.set_calibration_yaml(calib_data)
+    Kmat_cal    = cam.calc_Kmat()
+    dist_coeffs = cam._dist_coeffs_as_array()
+    proj        = PoseProjector(camera = cam)
+
+
+
+
+    # kps from drew/anand
+    with open(kps_file, 'r') as f:
+        kps_mm          = np.array( json.load(f) ) # obj in mm
+        kps_m           = kps_mm / 1e3
+        target_BFF_pts  = kps_m
+
+    # add origin to start of kps
+    target_BFF_pts_with_origin  = np.vstack( (np.zeros((1,3)), target_BFF_pts) ) 
+
+    opencv_df       = pd.read_csv(opencv_pose_est)
+    vicon_df        = pd.read_csv(vicon_pose_est)
+
+
+    # extract opencv pose estimates
+
+    # extract vicon pose estimates
+
+
+    # load both opencv and vicon data into dataframes
+    # iterate through rows
+    Rmats           = [] 
+    trs             = []
+    img_paths       = []
+    img_nums        = []
+
+    # matched loop
+    for i, row in opencv_df.iterrows():
+        img_name    = row['frame']
+        img_base    = Path(img_name).stem 
+        img_num     = int(img_base.split("_")[-1])
+        print(f"Processing row {i}: {img_name}")
+        img_path    = image_folder / img_name 
+        img_outpath = res_path / f"opencv_reproj_{img_base}.png" 
+        # extract opencv outputted rotation and translation
+        rvec        = np.array([row['rvec_x'], row['rvec_y'], row['rvec_z']])
+        tvec        = np.array([row['tvec_x'], row['tvec_y'], row['tvec_z']])
+
+        q_T_2_C, r_Co2To_C  = process_opencv_pose(rvec, tvec)
+        R_T_to_C            = q2rotm(q_T_2_C)
+
+        Rmats.append(R_T_to_C)
+        trs.append(r_Co2To_C)
+        img_paths.append(img_path)
+        img_nums.append(img_num)
+
+        # project 3D points to 2D image coordinates
+        uv_cam  = proj.classless_pinhole_project_to_image(
+                                                            q_TARGET_2_CAM    = q_T_2_C,
+                                                            r_Co2To_CAM       = r_Co2To_C,
+                                                            Kmat              = Kmat_cal,
+                                                            BC_dist_coeffs    = dist_coeffs,
+                                                            points_xyz_TARGET = target_BFF_pts_with_origin 
+                                                        )
+        
+        # draw the points and save the verification image
+        # Using str(img_path) to ensure compatibility with cv2/drawing functions
+        img_out = draw_uv_points_on_image(
+                                            img_or_path     = str(img_path),
+                                            points_uv       = uv_cam,
+                                            point_color     = (0, 0, 255),
+                                            point_radius    = 15, 
+                                            point_thickness = 2
+                                        )
+        # highlight origin point in a different color
+        uv_origin   = uv_cam[0]  # assuming the first point is the origin
+        img_out     = draw_uv_points_on_image(
+                                                img_or_path     = img_out,
+                                                points_uv       = uv_origin.reshape(1, 2),
                                                 point_color     = (0, 255, 0),  # Green for origin
                                                 point_radius    = 20, 
                                                 point_thickness = 3
                                             )
-    cv2.imwrite(vicon_img_outpath, img_vicon_out)
-    # combined
-    img_overlay_out = draw_uv_points_on_image(
-                                                img_or_path     = img_out,
-                                                points_uv       = uv_cam_vicon,
-                                                point_color     = (128, 0, 128),
-                                                point_radius    = 17, 
-                                                point_thickness = 3
-                                            )
-    cv2.imwrite(combined_img_out_path, img_overlay_out)
+        cv2.imwrite(img_outpath, img_out)
+
+        vicon_match = vicon_df[vicon_df[vicon_keys['frame']] == img_num]
+        if vicon_match.empty:
+            print(f"Image number {img_num} for {img_name} not found in vicon data, skipping...")
+            continue
+        vicon_row   = vicon_match.iloc[0, :]
+        
+        vicon_img_outpath       = res_path / f"vicon_reproj_{img_base}.png" 
+        combined_img_out_path   = res_path / f"combined_reproj_{img_base}.png" 
+        # uv_cam_vicon = proj.classless_pinhole_project_to_image(
+        Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE    = _load_offset_estimates(
+                                                                                                    offset_data_path = offset_data, 
+                                                                                                    offset_keys = offset_keys
+                                                                                                )
+        q_proc_T_2_C, r_proc_Co2To_C                                    = process_vicon_offset(
+                                                                                                        row = vicon_row,
+                                                                                                        T_CvC = Trf4x4_CAMVICON_2_CAM_TRUE,
+                                                                                                        T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE,
+                                                                                                        vicon_keys = vicon_keys
+                                                                                                    )
+        uv_cam_vicon    = proj.classless_pinhole_project_to_image(
+                                                                    q_TARGET_2_CAM    = q_proc_T_2_C,
+                                                                    r_Co2To_CAM       = r_proc_Co2To_C,
+                                                                    Kmat              = Kmat_cal,
+                                                                    BC_dist_coeffs    = dist_coeffs,
+                                                                    points_xyz_TARGET = target_BFF_pts_with_origin
+                                                                )
+        img_vicon_out   = draw_uv_points_on_image(
+                                                    img_or_path     = str(img_path),
+                                                    points_uv       = uv_cam_vicon,
+                                                    point_color     = (255, 0, 0),
+                                                    point_radius    = 15, 
+                                                    point_thickness = 2
+                                                )
+        # highlight origin point in a different color
+        uv_origin_vicon = uv_cam_vicon[0]  # assuming the first point is the origin
+        img_vicon_out   = draw_uv_points_on_image(
+                                                    img_or_path     = img_vicon_out,
+                                                    points_uv       = uv_origin_vicon.reshape(1, 2),
+                                                    point_color     = (0, 255, 0),  # Green for origin
+                                                    point_radius    = 20, 
+                                                    point_thickness = 3
+                                                )
+        cv2.imwrite(vicon_img_outpath, img_vicon_out)
+        # combined
+        img_overlay_out = draw_uv_points_on_image(
+                                                    img_or_path     = img_out,
+                                                    points_uv       = uv_cam_vicon,
+                                                    point_color     = (128, 0, 128),
+                                                    point_radius    = 17, 
+                                                    point_thickness = 3
+                                                )
+        cv2.imwrite(combined_img_out_path, img_overlay_out)
 
 
-trs_array       = np.array(trs)  # (N, 3)
-Rmats_array     = np.array(Rmats)  # (N, 3, 3)
+    trs_array       = np.array(trs)  # (N, 3)
+    Rmats_array     = np.array(Rmats)  # (N, 3, 3)
 
-# reproject all loop based on the pose estimates from vicon
+    # reproject all loop based on the pose estimates from vicon
 
-print(f'Results located at: {res_path}')
+    print(f'Results located at: {res_path}')
+
+if __name__ == "__main__":
+    main()
