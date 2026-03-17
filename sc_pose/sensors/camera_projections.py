@@ -9,7 +9,7 @@ import warnings
 
 # local imports
 from sc_pose.sensors.camera import CameraBase
-from sc_pose.math.quaternion import q2trfm, q2rotm
+from sc_pose.math_utils.quaternion import q2trfm, q2rotm
 
 r"""
 Note on passive and active rotations:

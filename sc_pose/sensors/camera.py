@@ -506,4 +506,8 @@ class PinholeCamera(CameraBase):
         # perspective back to normalized camera coordinates
         XYZ     = np.stack([x, y, ones], axis = -1) # shape (..., 3)
         XYZU    = XYZ / np.linalg.norm(XYZ, axis = -1, keepdims = True) # normalize to unit length
-        return XYZ, XYZU 
+        return XYZ, XYZU
+    
+    def _dist_coeffs_as_array(self) -> NDArray[np.floating]:
+        """ Return distortion coefficients as array in OpenCV order: [k1, k2, p1, p2, k3] """
+        return np.array([self.k1, self.k2, self.p1, self.p2, self.k3], dtype = self.dtype)
