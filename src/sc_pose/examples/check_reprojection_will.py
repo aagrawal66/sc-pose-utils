@@ -18,14 +18,14 @@ from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_
 
 HERE            = Path(__file__).parent.resolve()
 ##################################### Inputs #####################################
-data_file       = HERE / "artifacts" / "reprojection_images"
-offset_meta_data= data_file / "metadata" / "offset_results.json"
-camera_meta_data= data_file / "metadata" / "calibration.yaml" # wrong
-vicon_meta_data = data_file / "metadata" / "vicon_data.csv" # wrong
+data_file       = HERE / "artifacts" / "offset" / "expm_001" / "images"
+offset_meta_data= HERE / "artifacts" / "offset" / "expm_001" / "offset_results.json"
+camera_meta_data= HERE / "artifacts" / "offset" / "expm_001" / "calibration.yaml"
+vicon_meta_data = HERE / "artifacts" / "offset" / "expm_001" / "vicon_data.csv"
 skip_csv_header = True
-kps_file        = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_1000.json"
+kps_file        = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_50000.json"
 # setup keys
-res_path        = HERE / 'reproj_results'
+res_path        = HERE / 'results' / 'expm_001_reproj_will'
 os.makedirs(res_path, exist_ok=True)
 ##################################### Inputs #####################################
 def T_inverse(T: NDArray) -> NDArray:
