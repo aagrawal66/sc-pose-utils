@@ -39,7 +39,13 @@ def Trfm_4x4_inverse(T4x4: NDArray) -> NDArray:
     T4x4_inv[:3,3]  = t_inv
     return T4x4_inv
 
-def _process_vicon_cam_tar_v1(row, T_CvC, T_TvT):
+def _process_vicon_offset_v01(row, T_CvC, T_TvT):
+    """ 
+    Process vicon data using 4x4 Homogeneous transformation matrices
+    
+    T_CvC: transformation from Vicon camera frame to true camera frame
+    T_TvT: transformation from Vicon target frame to true target frame
+    """
     soho_x          = float( row[1] ) * 1E-3
     soho_y          = float( row[2] ) * 1E-3
     soho_z          = float( row[3] ) * 1E-3
@@ -86,11 +92,17 @@ def _process_vicon_cam_tar_v1(row, T_CvC, T_TvT):
     # corrected frames
     # attitude transformation from camera to target, translation from camera to target in camera frame
     q_CAMERA_2_TARGET   = q_wxyz
-    r_Co2To_CAM         = r_CT
+    r_Co2To_CAMERA     = r_CT
 
-    return q_CAMERA_2_TARGET, r_Co2To_CAM
+    return q_CAMERA_2_TARGET, r_Co2To_CAMERA
 
-def _process_vicon_cam_tar_v2(row, T_CvC, T_TvT):  
+def _process_vicon_offset_v02(row, T_CvC, T_TvT):
+    """
+    Process vicon data using passive rotation matricies and translation vectors
+    
+    T_CvC: transformation from Vicon camera frame to true camera frame
+    T_TvT: transformation from Vicon target frame to true target frame
+    """  
     # assuming error in Vicon frame definitions
     # CT: Camera Tilde frame
     # TT: Target Tilde frame
@@ -101,15 +113,41 @@ def _process_vicon_cam_tar_v2(row, T_CvC, T_TvT):
     q_VICON_2_CT    = np.array([row[vicon_keys['qw_cam']], row[vicon_keys['qx_cam']], row[vicon_keys['qy_cam']], row[vicon_keys['qz_cam']]])
     r_Vo2TTo_VICON  = np.array([row[vicon_keys['x_target']], row[vicon_keys['y_target']], row[vicon_keys['z_target']]])
     q_VICON_2_TT    = np.array([row[vicon_keys['qw_target']], row[vicon_keys['qx_target']], row[vicon_keys['qy_target']], row[vicon_keys['qz_target']]])
-    # we want q_TARGET_TILDE_2_CAM_TILDE and r_CTo2To_CAM_TILDE
-    q_TT_2_CT       = q_mult_shu(q2 = q_VICON_2_CT, q1 = q_conj(q_VICON_2_TT))
-    r_CTo2TTo_CT    = q2trfm(q_VICON_2_CT) @ ( r_Vo2TTo_VICON - r_Vo2CTo_VICON)
+    
+    # # we want q_TARGET_TILDE_2_CAM_TILDE and r_CTo2To_CAM_TILDE
+    # q_TT_2_CT       = q_mult_shu(q2 = q_VICON_2_CT, q1 = q_conj(q_VICON_2_TT))
+    # r_CTo2TTo_CT    = q2trfm(q_VICON_2_CT) @ ( r_Vo2TTo_VICON - r_Vo2CTo_VICON)
+    
+    # extract the rotation and translation from the transformations from vicon to camera/target, then apply the correction from vicon to true frames
+    # camera
+    r_CTo2Co_C      = T_CvC[:3, -1]
+    T_CT_2_C        = T_CvC[:3, :3]
+    R_CT_2_C        = T_CT_2_C.T 
+    q_CT_2_C         = rotm2q(R_CT_2_C)
+    # target
+    r_TTo2To_T      = T_TvT[:3, -1]
+    T_TT_2_T        = T_TvT[:3, :3]
+    R_TT_2_T        = T_TT_2_T.T
+    q_TT_2_T        = rotm2q(R_TT_2_T)
 
-    
-    
-    
+    # calculate the quaterion relating true camera frame to true target frame    
+    # go from Vicon to Camera Tilde then Camera Tilde to true Camera to get Vicon to true Camera
+    q_VICON_2_C     = q_mult_shu(q2 = q_CT_2_C, q1 = q_VICON_2_CT)
+    T_VICON_2_C       = q2trfm(q_VICON_2_C)
+    # go from Vicon to Target Tilde then Target Tilde to true Target to get Vicon to true Target
+    q_VICON_2_T     = q_mult_shu(q2 = q_TT_2_T, q1 = q_VICON_2_TT)
+    # go from Camera To Vicon then Vicon to Target to get Camera to Target
+    T_VICON_2_T     = q2trfm(q_VICON_2_T)
+    q_C_2_T         = q_mult_shu(q2 = q_VICON_2_T, q1 = q_conj(q_VICON_2_C))
 
-    return q_CAMERA_2_TARGET, r_Co2To_CAM
+    # calculate the translation from true camera to true target frame in the true camera frame
+    r_Vo2Co_C       = T_VICON_2_C @ (r_Vo2CTo_VICON +  T_VICON_2_C.T @ r_CTo2Co_C )
+    r_Vo2To_C       = T_VICON_2_C @ (r_Vo2TTo_VICON +  T_VICON_2_T.T @ r_TTo2To_T )
+    r_Co2To_C       = r_Vo2Co_C - r_Vo2To_C
+    
+    q_CAMERA_2_TARGET   = q_C_2_T
+    r_Co2To_CAMERA      = r_Co2To_C
+    return q_CAMERA_2_TARGET, r_Co2To_CAMERA
 
 def _load_offset_estimates(offset_data_path, offset_keys):
     # extract offset estimates from json
@@ -123,14 +161,6 @@ def _load_offset_estimates(offset_data_path, offset_keys):
     
     return Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE
 
-def _process_vicon_offset_v1():
-    pass
-
-def _process_vicon_offset_v2():
-    pass
-
-def _process_vicon_offset_v3():
-    pass
 ################################ Helper Functions ################################
 
 
