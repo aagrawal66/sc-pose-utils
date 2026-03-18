@@ -94,7 +94,7 @@ class CameraBase(ABC):
     def build_Kmat(self, fx: float, fy: float, cx: float, cy: float, skew: float = 0.0) -> NDArray[np.floating]:
         """ 
         build the camera intrinsic matrix K 
-        LaTeX: K = \begin{bmatrix} f_x & s & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
+        LaTeX: K = begin{bmatrix} f_x & s & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
         """
         Kmat    = np.array([
                             [fx, skew, cx],
