@@ -16,7 +16,7 @@ from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_
 
 
 ################################ Helper Functions ################################
-def Trfm_4x4_inverse(T4x4: NDArray) -> NDArray:
+def T4x4_inv(T4x4: NDArray) -> NDArray:
     """ 
     Invert a 4x4 homogeneous transformation matrix
     of the form:
@@ -35,6 +35,21 @@ def Trfm_4x4_inverse(T4x4: NDArray) -> NDArray:
     T4x4_inv[:3,:3] = Rmat_inv
     T4x4_inv[:3,3]  = t_inv
     return T4x4_inv
+
+
+
+def T4x4_2_uv(T4x4_A_B: NDArray, cam: PinholeCamera, pts_A: NDArray) -> NDArray:
+    """ Project 3D points in A frame to 2D pixel coordinates in the camera frame, given the 4x4 homogeneous transformation from A to B and the camera object with calibration data """
+    # Trfm_A_B    = T4x4_A_B[:3,:3]
+    # tr_B_A_in_B = T4x4_A_B[:3,3]
+    # # pts_B       = Trfm_A_B @ pts_A + tr_B_A_in_B
+    pts_B           = np.empty_like(pts_A, dtype = float)
+    for i, p in enumerate(pts_A):
+        p_h_A       = np.array([p[0], p[1], p[2], 1.0]) # homogeneous point
+        p_h_B       = T4x4_A_B @ p_h_A
+        pts_B[i]    = p_h_B[:3]
+    uv              = cam.project_camera3Dxyz_to_imageUV(pts_B)
+    return uv
 
 def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     """ 
@@ -55,8 +70,6 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     A^R_B is a passive rotation matrix from frame B to frame A, meaning it rotates the coordinate axes of frame B to align with frame A
     A^t_{Ao -> B} is a translation vector from the origin of frame A to the origin of frame B, expressed in frame A's coordinates 
     """
-    T_CvC           = Trfm_4x4_inverse(T_CvC)
-    T_TvT           = Trfm_4x4_inverse(T_TvT)
     soho_x          = float(row[vicon_keys['x_target']]) * 1E-3
     soho_y          = float(row[vicon_keys['y_target']]) * 1E-3
     soho_z          = float(row[vicon_keys['z_target']]) * 1E-3
@@ -64,11 +77,11 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     soho_qx         = float(row[vicon_keys['qx_target']])
     soho_qy         = float(row[vicon_keys['qy_target']])
     soho_qz         = float(row[vicon_keys['qz_target']])
-    
     # ^V t_{Vo->Tvo}
     soho_VTv        = np.array( [ soho_x, soho_y, soho_z ] )
     # q_V_2_Tv, representing the rotation from the vicon frame to target vicon frame
     soho_quatVTv    = np.array( [ soho_qw, soho_qx, soho_qy, soho_qz ] )
+    Trfm_TvV        = q2trfm( soho_quatVTv ) # q2trfm gives passive rotation matrix (coordinate transformation) from target vicon frame to vicon frame
 
     cam_x           = float(row[vicon_keys['x_cam']]) * 1E-3
     cam_y           = float(row[vicon_keys['y_cam']]) * 1E-3
@@ -76,12 +89,13 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     cam_qw          = float(row[vicon_keys['qw_cam']])
     cam_qx          = float(row[vicon_keys['qx_cam']])
     cam_qy          = float(row[vicon_keys['qy_cam']])
-    cam_qz          = float(row[vicon_keys['qz_cam']])
-    
+    cam_qz          = float(row[vicon_keys['qz_cam']])    
     # ^V t_{Vo->Cvo}
     cam_VCv         = np.array( [ cam_x, cam_y, cam_z ] )
     # q_V_2_Cv, representing the rotation from the vicon frame to camera vicon frame
     cam_quatVCv     = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] )
+    Trfm_CvV        = q2trfm( cam_quatVCv ) # q2trfm gives passive rotation matrix (coordinate transformation) from camera vicon frame to vicon frame
+
 
     # R in this fcn are passive rotation matrices
     # _ABv means passive rotation from A to B Vicon frame
@@ -91,37 +105,39 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     # ==========================================================
     # we have soho_VTv, which is in the V frame
     # this implies the T 4x4 Homogenous relates Target Vicon frame to the Vicon frame, T_TvV
-    # so to build a 4x4 homogenous, we need V^R_Tv = R_TvV, we have soho_quatVTv
     T_TvV           = np.eye(4)
     T_TvV[:3, 3]    = soho_VTv
-    R_TvV           = q2rotm(soho_quatVTv)
-    T_TvV[:3, :3]   = R_TvV
+    T_TvV[:3, :3]   = Trfm_TvV
 
     # ==========================================================
     # Build T_CvV = ^V T_Cv  (transform from Cv coordinates to V)
     # ==========================================================
     # we have cam_VCv, which is in the V frame
     # this implies the T 4x4 Homogenous relates Camera Vicon frame to the Vicon frame, T_CvV
-    # so to build a 4x4 homogenous, we need V^R_Cv = R_CvV, we have cam_quatVCv
     T_CvV           = np.eye(4)
     T_CvV[:3, 3]    = cam_VCv
-    R_CvV           = q2rotm(cam_quatVCv) # passive rotation from V to Camera Vicon frame
-    T_CvV[:3, :3]   = R_CvV # R_CvV
+    T_CvV[:3, :3]   = Trfm_CvV # R_CvV
     
+    T_T_C           = T_CvC @ (T4x4_inv(T_CvV) @ T_TvV) @ T4x4_inv(T_TvT)
+    Trfm_T_C        = T_T_C[:3, :3]
+    Rotm_C_T        = Trfm_T_C.T
+    q_C_T           = rotm2q(Rotm_C_T)
+    q_T_C           = q_conj(q_C_T)
+    r_Co2To_C       = T_T_C[:3, 3]
+
+    # # we want T_TC: from true target frame to true camera frame
+    # T_TvCv          = T4x4_inv(T_CvV) @ T_TvV
+    # # full sequence: True Target -> Vicon Target -> Vicon Target -> Vicon Camera -> Vicon Camera -> True Camera 
+    # T_TC            = T_CvC @ T_TvCv @ T4x4_inv(T_TvT)
     
-    # we want T_TC: from true target frame to true camera frame
-    T_TvCv          = Trfm_4x4_inverse(T_CvV) @ T_TvV
-    # full sequence: True Target -> Vicon Target -> Vicon Target -> Vicon Camera -> Vicon Camera -> True Camera 
-    T_TC            = T_CvC @ T_TvCv @ Trfm_4x4_inverse(T_TvT)
+    # R_TC            = T_TC[:3, :3]
+    # q_TC            = rotm2q(R_TC)
+    # r_Co2To_C       = T_TC[:3, 3]
     
-    R_TC            = T_TC[:3, :3]
-    q_TC            = rotm2q(R_TC)
-    r_Co2To_C       = T_TC[:3, 3]
-    
-    q_TARGET_2_CAMERA   = q_TC
+    q_TARGET_2_CAMERA   = q_T_C
     r_Co2To_CAMERA      = r_Co2To_C
 
-    return q_TARGET_2_CAMERA, r_Co2To_CAMERA
+    return q_TARGET_2_CAMERA, r_Co2To_CAMERA, T_T_C
 
 def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     """
@@ -132,8 +148,8 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     """ 
     Cv_T_C              = np.asarray(T_CvC, dtype = float)
     Tv_T_T              = np.asarray(T_TvT, dtype = float)
-    T_CvC               = Trfm_4x4_inverse(Cv_T_C)
-    T_TvT               = Trfm_4x4_inverse(Tv_T_T)
+    T_CvC               = T4x4_inv(Cv_T_C)
+    T_TvT               = T4x4_inv(Tv_T_T)
 
     # Raw Vicon translations are in meters in the Vicon frame.
     r_Vo2CTo_V          = np.array(
@@ -311,7 +327,7 @@ def _select_processor(processor_name, processor_map, processor_kind):
 def main():
     HERE                = Path(__file__).parent.resolve()
     ##################################### Inputs #####################################
-    data_folder         = HERE / "artifacts" / "offset" / "expm_002"
+    data_folder         = HERE / "artifacts" / "offset" / "expm_001"
     data_name           = data_folder.name
     image_folder        = data_folder / "images"
     # kps_file is in mm
@@ -508,19 +524,24 @@ def main():
                                                                                                     offset_data_path = offset_data, 
                                                                                                     offset_keys = offset_keys
                                                                                                 )
-        q_proc_T_2_C, r_proc_Co2To_C                                    = process_vicon_offset(
+        q_proc_T_2_C, r_proc_Co2To_C, T_T_C                                    = process_vicon_offset(
                                                                                                         row = vicon_row,
                                                                                                         T_CvC = Trf4x4_CAMVICON_2_CAM_TRUE,
                                                                                                         T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE,
                                                                                                         vicon_keys = vicon_keys
                                                                                                     )
-        uv_cam_vicon    = proj.classless_pinhole_project_to_image(
-                                                                    q_TARGET_2_CAM    = q_proc_T_2_C,
-                                                                    r_Co2To_CAM       = r_proc_Co2To_C,
-                                                                    Kmat              = Kmat_cal,
-                                                                    BC_dist_coeffs    = dist_coeffs,
-                                                                    points_xyz_TARGET = target_BFF_pts_with_origin
-                                                                )
+        # uv_cam_vicon    = proj.classless_pinhole_project_to_image(
+        #                                                             q_TARGET_2_CAM    = q_proc_T_2_C,
+        #                                                             r_Co2To_CAM       = r_proc_Co2To_C,
+        #                                                             Kmat              = Kmat_cal,
+        #                                                             BC_dist_coeffs    = dist_coeffs,
+        #                                                             points_xyz_TARGET = target_BFF_pts_with_origin
+        #                                                         )
+        uv_cam_vicon    = T4x4_2_uv(
+                                        T4x4_A_B = T_T_C,
+                                        cam = cam,
+                                        pts_A = target_BFF_pts_with_origin
+                                    )
         img_vicon_out   = draw_uv_points_on_image(
                                                     img_or_path     = str(img_path),
                                                     points_uv       = uv_cam_vicon,
