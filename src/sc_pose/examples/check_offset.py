@@ -3,7 +3,7 @@ from pathlib import Path
 import json 
 import cv2
 from scipy.spatial.transform import Rotation as R
-import os 
+import os, shutil
 import pandas as pd
 import numpy as np
 from numpy.typing import NDArray
@@ -42,6 +42,18 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     
     T_CvC: transformation from Vicon camera frame to true camera frame
     T_TvT: transformation from Vicon target frame to true target frame
+
+    Return: 
+    q_TARGET_2_CAMERA: quaternion representing rotation from true camera frame to true target frame
+    r_Co2To_CAMERA: translation from true camera frame to true target frame in the true camera frame
+
+    Note: pose filtering may want q_CAMERA_2_TARGET instead, which is the conjugate of q_TARGET_2_CAMERA
+
+    Notation:
+    ^ A T_B is a 4x4 homogeneous transformation matrix that transforms points from frame B to frame A
+    [ A^R_B | A^t_{Ao -> B}]: 
+    A^R_B is a passive rotation matrix from frame B to frame A, meaning it rotates the coordinate axes of frame B to align with frame A
+    A^t_{Ao -> B} is a translation vector from the origin of frame A to the origin of frame B, expressed in frame A's coordinates 
     """
     soho_x          = float(row[vicon_keys['x_target']]) * 1E-3
     soho_y          = float(row[vicon_keys['y_target']]) * 1E-3
@@ -63,35 +75,82 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     cam_VCv         = np.array( [ cam_x, cam_y, cam_z ] )
     cam_quatVCv     = np.array( [ cam_qw, cam_qx, cam_qy, cam_qz ] )
 
+    # R in this fcn are passive rotation matrices
+    # _ABv means passive rotation from A to B Vicon frame
     
-    # convert Vicon information into a transformation matrix from Vicon frame to the Vicon target frame
-    R_VTv           = R.from_quat( soho_quatVTv, scalar_first = True ).as_matrix()
-    T_VTv           = np.eye(4)
-    T_VTv[:3,:3]    = R_VTv
-    T_VTv[:3,3]     = soho_VTv
+    # general notation:
+    # ^A T_B = from B to A
+    # ^B T_C = from C to B
+    # therefore ^A T_B * ^B T_C = from C to A = ^A T_C
+    # so ^{Tv} T_{Cv} = ^{Tv} T_{V} * ^{V} T_{Cv} = ^{Tv} T_{V} * ( ^{Cv} T_{V} )^-1 
 
-    # convert Vicon information into a transformation matrix from Vicon frame to the Vicon camera frame
-    R_VCv           = R.from_quat( cam_quatVCv, scalar_first = True ).as_matrix()
-    T_VCv           = np.eye(4)
-    T_VCv[:3,:3]    = R_VCv
-    T_VCv[:3,3]     = cam_VCv
 
-    # homogenous transformation matrix from vicon camera frame to vicon target frame
-    T_CvTv          = Trfm_4x4_inverse(T_VCv) @ T_VTv
-    # homogenous transformation matrix from true camera frame to true target frame
-    T_CT            = Trfm_4x4_inverse(T_CvC) @ T_CvTv @ Trfm_4x4_inverse(T_TvT)
+    # we have soho_VTv, which is in the V frame 
+    # so to build a 4x4 homogenous, we need R_TvV, we have soho_quatVTv, so we will need to take its conjugate and get the resulting passive rotation matrix
+    # we will build T_TvV
+    T_TvV           = np.eye(4)
+    T_TvV[:3, 3]    = soho_VTv
+    T_TvV[:3, :3]   = q2trfm(q_conj(soho_quatVTv)) # R_TvV
 
-    # extracting quaternion and translation from homogeneous transformation matrix
-    q_CT            = R.from_matrix( T_CT[:3,:3] ).as_quat()  # [x, y, z, w]
-    q_wxyz          = np.roll(q_CT, 1)  
-    r_CT            = T_CT[:3,3]
+    # we have cam_VCv, which is in the V frame
+    # to build a 4x4 homogenous, we need R_CvV, we have cam_quatVCv, so we will need to take its conjugate and get the resulting passive rotation matrix
+    # we will build T_CvV
+    T_CvV           = np.eye(4)
+    T_CvV[:3, 3]    = cam_VCv
+    T_CvV[:3, :3]   = q2trfm(q_conj(cam_quatVCv)) # R_CvV
+    
+    # we want T_TC: from true target frame to true camera frame
+    T_TvCv          = Trfm_4x4_inverse(T_CvV) @ T_TvV
+    # full sequence: True Target -> Vicon Target -> Vicon Target -> Vicon Camera -> Vicon Camera -> True Camera 
+    T_TC            = T_CvC @ T_TvCv @ Trfm_4x4_inverse(T_TvT)
+    
+    R_TC            = T_TC[:3, :3]
+    q_TC            = rotm2q(R_TC.T) # need to transpose b/c rotm2q assumes active rotation, but we are using passive rotation matrices
+    r_Co2To_C       = T_TC[:3, 3]
+    
+    q_TARGET_2_CAMERA   = q_TC
+    r_Co2To_CAMERA      = r_Co2To_C
+    
+    
+    # # # convert Vicon information into a transformation matrix from Vicon frame to the Vicon target frame
+    # # # R_VTv           = R.from_quat( soho_quatVTv, scalar_first = True ).as_matrix() #, this is most likley active rotation, need transpose
+    # # T_VTv[:3,3]     = soho_VTv # in V frame 
 
-    # corrected frames
-    # attitude transformation from camera to target, translation from camera to target in camera frame
-    q_CAMERA_2_TARGET   = q_wxyz
-    r_Co2To_CAMERA     = r_CT
+    # #     R_VTv           = q2trfm(soho_quatVTv).T
+    # # T_VTv           = np.eye(4)
+    # # T_VTv[:3,:3]    = R_VTv
 
-    return q_CAMERA_2_TARGET, r_Co2To_CAMERA
+
+    # # convert Vicon information into a transformation matrix from Vicon frame to the Vicon camera frame
+    # # R_VCv           = R.from_quat( cam_quatVCv, scalar_first = True ).as_matrix() #, this is most likley active rotation, need transpose
+    # R_VCv           = q2trfm(cam_quatVCv).T
+    # T_VCv           = np.eye(4)
+    # T_VCv[:3,:3]    = R_VCv
+    # T_VCv[:3,3]     = cam_VCv
+
+
+    # # homogenous transformation matrix from vicon camera frame to vicon target frame
+    # # full sequence: Camera Vicon -> Vicon -> Vicon -> Target Vicon = Camera Vicon -> Target Vicon
+    # T_CvTv      = T_VTv @ Trfm_4x4_inverse(T_VCv)
+    #  # homogenous transformation matrix from true camera frame to true target frame
+    #  # full sequence: Camera True -> Camera Vicon -> Camera Vicon -> Target Vicon -> Target Vicon -> Target True = Camera True -> Target True
+    # T_CT        = Trfm_4x4_inverse(T_TvT) @ T_CvTv @ Trfm_4x4_inverse(T_CvC)
+    # T_TC        = Trfm_4x4_inverse(T_CT)
+    # r_Co2To_C   = T_TC[:3, 3]
+    # R_TC        = T_TC[:3, :3]
+    # q_TC        = q2trfm(R_TC)
+
+    # # # extracting quaternion and translation from homogeneous transformation matrix
+    # # q_CT            = R.from_matrix( T_CT[:3,:3] ).as_quat()  # [x, y, z, w]
+    # # q_wxyz          = np.roll(q_CT, 1)  
+    # # r_CT            = T_CT[:3,3]
+
+    # # corrected frames
+    # # attitude transformation from camera to target, translation from camera to target in camera frame
+    # q_TARGET_2_CAMERA   = q_wxyz
+    # r_Co2To_CAMERA      = r_CT
+
+    return q_TARGET_2_CAMERA, r_Co2To_CAMERA
 
 def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     """
@@ -103,48 +162,48 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     # assuming error in Vicon frame definitions
     # CT: Camera Tilde frame
     # TT: Target Tilde frame
-    # VICON: Vicon frame
+    # V: Vicon frame
     # we have transformations from VICON to both CT and TT
     # we want to find the transformation from CT to TT
-    r_Vo2CTo_VICON  = np.array([row[vicon_keys['x_cam']], row[vicon_keys['y_cam']], row[vicon_keys['z_cam']]])
-    q_VICON_2_CT    = np.array([row[vicon_keys['qw_cam']], row[vicon_keys['qx_cam']], row[vicon_keys['qy_cam']], row[vicon_keys['qz_cam']]])
-    r_Vo2TTo_VICON  = np.array([row[vicon_keys['x_target']], row[vicon_keys['y_target']], row[vicon_keys['z_target']]])
-    q_VICON_2_TT    = np.array([row[vicon_keys['qw_target']], row[vicon_keys['qx_target']], row[vicon_keys['qy_target']], row[vicon_keys['qz_target']]])
+    r_Vo2CTo_V  = np.array([row[vicon_keys['x_cam']], row[vicon_keys['y_cam']], row[vicon_keys['z_cam']]]) * 1E-3 # convert from mm to m
+    q_V_2_CT    = np.array([row[vicon_keys['qw_cam']], row[vicon_keys['qx_cam']], row[vicon_keys['qy_cam']], row[vicon_keys['qz_cam']]])
+    r_Vo2TTo_V  = np.array([row[vicon_keys['x_target']], row[vicon_keys['y_target']], row[vicon_keys['z_target']]]) * 1E-3 # convert from mm to m
+    q_V_2_TT    = np.array([row[vicon_keys['qw_target']], row[vicon_keys['qx_target']], row[vicon_keys['qy_target']], row[vicon_keys['qz_target']]])
+    Trfm_V_2_CT = q2trfm(q_V_2_CT)
+    Trfm_V_2_TT = q2trfm(q_V_2_TT)
+
     
-    # # we want q_TARGET_TILDE_2_CAM_TILDE and r_CTo2To_CAM_TILDE
-    # q_TT_2_CT       = q_mult_shu(q2 = q_VICON_2_CT, q1 = q_conj(q_VICON_2_TT))
-    # r_CTo2TTo_CT    = q2trfm(q_VICON_2_CT) @ ( r_Vo2TTo_VICON - r_Vo2CTo_VICON)
-    
-    # extract the rotation and translation from the transformations from vicon to camera/target, then apply the correction from vicon to true frames
+    # extract the passive rotation and translation from the transformations from Camera Vicon to true Camera and from Target Vicon to true Target
     # camera
-    r_CTo2Co_C      = T_CvC[:3, -1]
-    T_CT_2_C        = T_CvC[:3, :3]
-    R_CT_2_C        = T_CT_2_C.T 
-    q_CT_2_C         = rotm2q(R_CT_2_C)
-    # target
-    r_TTo2To_T      = T_TvT[:3, -1]
-    T_TT_2_T        = T_TvT[:3, :3]
-    R_TT_2_T        = T_TT_2_T.T
-    q_TT_2_T        = rotm2q(R_TT_2_T)
-
-    # calculate the quaterion relating true camera frame to true target frame    
-    # go from Vicon to Camera Tilde then Camera Tilde to true Camera to get Vicon to true Camera
-    q_VICON_2_C     = q_mult_shu(q2 = q_CT_2_C, q1 = q_VICON_2_CT)
-    T_VICON_2_C       = q2trfm(q_VICON_2_C)
-    # go from Vicon to Target Tilde then Target Tilde to true Target to get Vicon to true Target
-    q_VICON_2_T     = q_mult_shu(q2 = q_TT_2_T, q1 = q_VICON_2_TT)
-    # go from Camera To Vicon then Vicon to Target to get Camera to Target
-    T_VICON_2_T     = q2trfm(q_VICON_2_T)
-    q_C_2_T         = q_mult_shu(q2 = q_VICON_2_T, q1 = q_conj(q_VICON_2_C))
-
-    # calculate the translation from true camera to true target frame in the true camera frame
-    r_Vo2Co_C       = T_VICON_2_C @ (r_Vo2CTo_VICON +  T_VICON_2_C.T @ r_CTo2Co_C )
-    r_Vo2To_C       = T_VICON_2_C @ (r_Vo2TTo_VICON +  T_VICON_2_T.T @ r_TTo2To_T )
-    r_Co2To_C       = r_Vo2Co_C - r_Vo2To_C
+    r_Co2CTo_C  = T_CvC[:3, -1]
+    Trfm_CT_2_C = T_CvC[:3, :3]
     
-    q_CAMERA_2_TARGET   = q_C_2_T
-    r_Co2To_CAMERA      = r_Co2To_C * 1e-3
-    return q_CAMERA_2_TARGET, r_Co2To_CAMERA
+    # target
+    r_To2TTo_T  = T_TvT[:3, -1]
+    Trfm_TT_2_T = T_TvT[:3, :3]
+
+    # we want Trfm_T_2_C
+    # this is the transformation from the true target frame to the true camera frame
+    # full sequence: true target -> target vicon -> target vicon -> vicon -> vicon -> camera vicon -> camera vicon -> true camera = true target -> camera vicon
+    Trfm_TT_CT  = Trfm_V_2_CT.T @  Trfm_V_2_TT.T # from target vicon -> vicon -> vicon -> camera vicon = from target vicon to camera vicon
+    Trfm_T_2_C  = Trfm_CT_2_C @ Trfm_TT_CT @ Trfm_TT_2_T.T
+    Rotm_T_2_C  = Trfm_T_2_C.T
+
+    # we want r_Co2To_C, the translation from true camera to true target in the true camera frame
+    # we have r_Co2CTo_C, the translation from true camera to camera vicon in the true camera frame
+    # we need r_TTo2To_C, we have r_To2TTo_T, the translation from true target to target vicon in the true target frame 
+    r_To2TTo_C      = Trfm_T_2_C @ (-r_To2TTo_T) 
+    # we need r_CTo2TTo_C, the translation from the vicon camera frame to the vicon target frame in the true camera frame
+    r_CTo2TTo_V     = r_Vo2TTo_V - r_Vo2CTo_V
+    Trfm_V_2_C      = Trfm_CT_2_C @ Trfm_V_2_CT.T
+    r_CTo2TTo_C     = Trfm_V_2_C @ r_CTo2TTo_V
+    r_Co2To_C       = r_Co2CTo_C + r_CTo2TTo_C + r_To2TTo_C
+    # so full sequence in the camera frame: true camera origin -> camera vicon origin -> camera vicon origin-> target vicon origin -> target vicon origin -> true target origin
+    # = true camera origin -> true target origin
+
+    q_TARGET_2_CAMERA   = rotm2q(Rotm_T_2_C)
+    r_Co2To_CAMERA      = r_Co2To_C
+    return q_TARGET_2_CAMERA, r_Co2To_CAMERA
 
 
 def _process_vicon_offset_v03(row, T_CvC, T_TvT, vicon_keys):
@@ -263,7 +322,6 @@ def main():
     data_folder         = HERE / "artifacts" / "offset" / "expm_001"
     data_name           = data_folder.name
     image_folder        = data_folder / "images"
-    skip_csv_header     = True
     # kps_file is in mm
     kps_file            = HERE / "artifacts" / "soho_reframed_mesh_pose_pack" / "mesh_points_50000.json" # origin shifted to edge
     # kps_centered_file   = 
@@ -273,10 +331,10 @@ def main():
     # calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
     offset_data         = data_folder / "offset_results.json"
     # setup keys
-    res_path            = HERE / "results" / data_name
+    res_path            = HERE / "results" / f'{data_name}_v03'
 
     # choose type of vicon and opencv pose processing
-    selected_vicon_offset_processor = "v01"  # options: v01, v02, v03
+    selected_vicon_offset_processor = "v03"  # options: v01, v02, v03
     selected_opencv_pose_processor  = "v01"  # options: v01, v02
 
 
@@ -349,7 +407,11 @@ def main():
                                                 )
     ############################## Secondary Input Setup #############################
     # make results path
+    if res_path.exists():
+        print(f"Warning: {res_path} already exists, deleting and recreating...")
+        shutil.rmtree(res_path)
     os.makedirs(res_path, exist_ok = True)
+    print(f"Results will be saved to: {res_path}")
 
 
     # create projection object
