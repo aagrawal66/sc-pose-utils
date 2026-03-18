@@ -130,55 +130,71 @@ def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
     T_CvC: transformation from Vicon camera frame to true camera frame
     T_TvT: transformation from Vicon target frame to true target frame
     """ 
-    Cv_T_C          = T_CvC
-    Tv_T_T          = T_TvT
-    T_CvC           = Trfm_4x4_inverse(Cv_T_C)
-    T_TvT           = Trfm_4x4_inverse(Tv_T_T)
-    # assuming error in Vicon frame definitions
-    # CT: Camera Tilde frame
-    # TT: Target Tilde frame
-    # V: Vicon frame
-    # we have transformations from VICON to both CT and TT
-    # we want to find the transformation from CT to TT
-    r_Vo2CTo_V  = np.array([row[vicon_keys['x_cam']], row[vicon_keys['y_cam']], row[vicon_keys['z_cam']]]) * 1E-3 # convert from mm to m
-    q_V_2_CT    = np.array([row[vicon_keys['qw_cam']], row[vicon_keys['qx_cam']], row[vicon_keys['qy_cam']], row[vicon_keys['qz_cam']]])
-    r_Vo2TTo_V  = np.array([row[vicon_keys['x_target']], row[vicon_keys['y_target']], row[vicon_keys['z_target']]]) * 1E-3 # convert from mm to m
-    q_V_2_TT    = np.array([row[vicon_keys['qw_target']], row[vicon_keys['qx_target']], row[vicon_keys['qy_target']], row[vicon_keys['qz_target']]])
-    Trfm_CT_2_V = q2trfm(q_V_2_CT)
-    Trfm_TT_2_V = q2trfm(q_V_2_TT)
-    Trfm_V_2_CT = Trfm_CT_2_V.T
-    Trfm_V_2_TT = Trfm_TT_2_V.T
+    Cv_T_C              = np.asarray(T_CvC, dtype = float)
+    Tv_T_T              = np.asarray(T_TvT, dtype = float)
+    T_CvC               = Trfm_4x4_inverse(Cv_T_C)
+    T_TvT               = Trfm_4x4_inverse(Tv_T_T)
 
-    
-    # extract the passive rotation and translation from the transformations from Camera Vicon to true Camera and from Target Vicon to true Target
-    # camera
-    r_Co2CTo_C  = T_CvC[:3, -1]
-    Trfm_CT_2_C = T_CvC[:3, :3]
-    
-    # target
-    r_To2TTo_T  = T_TvT[:3, -1]
-    Trfm_TT_2_T = T_TvT[:3, :3]
+    # Raw Vicon translations are in meters in the Vicon frame.
+    r_Vo2CTo_V          = np.array(
+                                [
+                                    row[vicon_keys['x_cam']],
+                                    row[vicon_keys['y_cam']],
+                                    row[vicon_keys['z_cam']],
+                                ],
+                                dtype = float,
+                            ) * 1E-3
+    q_V_2_CT            = np.array(
+                                [
+                                    row[vicon_keys['qw_cam']],
+                                    row[vicon_keys['qx_cam']],
+                                    row[vicon_keys['qy_cam']],
+                                    row[vicon_keys['qz_cam']],
+                                ],
+                                dtype = float,
+                            )
+    r_Vo2TTo_V          = np.array(
+                                [
+                                    row[vicon_keys['x_target']],
+                                    row[vicon_keys['y_target']],
+                                    row[vicon_keys['z_target']],
+                                ],
+                                dtype = float,
+                            ) * 1E-3
+    q_V_2_TT            = np.array(
+                                [
+                                    row[vicon_keys['qw_target']],
+                                    row[vicon_keys['qx_target']],
+                                    row[vicon_keys['qy_target']],
+                                    row[vicon_keys['qz_target']],
+                                ],
+                                dtype = float,
+                            )
 
-    # we want Trfm_T_2_C
-    # this is the transformation from the true target frame to the true camera frame
-    # full sequence: true target -> target vicon -> target vicon -> vicon -> vicon -> camera vicon -> camera vicon -> true camera = true target -> camera vicon
-    Trfm_TT_CT  = Trfm_V_2_CT @  Trfm_V_2_TT.T # from target vicon -> vicon -> vicon -> camera vicon = from target vicon to camera vicon
-    Trfm_T_2_C  = Trfm_CT_2_C @ Trfm_TT_CT @ Trfm_TT_2_T.T
-    Rotm_T_2_C  = Trfm_T_2_C.T
+    # Use the raw Vicon quaternions the same way CamCal builds T_VCv / T_VTv.
+    Trfm_V_2_CT         = q2trfm(q_V_2_CT)
+    Trfm_V_2_TT         = q2trfm(q_V_2_TT)
+    Trfm_CT_2_V         = Trfm_V_2_CT.T
+    Trfm_TT_2_V         = Trfm_V_2_TT.T
 
-    # we want r_Co2To_C, the translation from true camera to true target in the true camera frame
-    # we have r_Co2CTo_C, the translation from true camera to camera vicon in the true camera frame
-    # we need r_TTo2To_C, we have r_To2TTo_T, the translation from true target to target vicon in the true target frame 
-    r_To2TTo_C      = Trfm_T_2_C @ (-r_To2TTo_T) 
-    # we need r_CTo2TTo_C, the translation from the vicon camera frame to the vicon target frame in the true camera frame
-    r_CTo2TTo_V     = r_Vo2TTo_V - r_Vo2CTo_V
-    Trfm_V_2_C      = Trfm_CT_2_C @ Trfm_CT_2_V.T
-    r_CTo2TTo_C     = Trfm_V_2_C @ r_CTo2TTo_V
-    r_Co2To_C       = r_Co2CTo_C + r_CTo2TTo_C + r_To2TTo_C
-    # so full sequence in the camera frame: true camera origin -> camera vicon origin -> camera vicon origin-> target vicon origin -> target vicon origin -> true target origin
-    # = true camera origin -> true target origin
+    # Extract true-frame offset terms.
+    r_Co2CTo_C          = T_CvC[:3, 3]
+    Trfm_CT_2_C         = T_CvC[:3, :3]
+    r_To2TTo_T          = T_TvT[:3, 3]
+    Trfm_TT_2_T         = T_TvT[:3, :3]
 
-    q_TARGET_2_CAMERA   = rotm2q(Rotm_T_2_C)
+    # Compose target-vicon -> camera-vicon, then true-target -> true-camera.
+    Trfm_TT_CT          = Trfm_V_2_CT @ Trfm_V_2_TT.T
+    Trfm_T_2_C          = Trfm_CT_2_C @ Trfm_TT_CT @ Trfm_TT_2_T.T
+
+    # Translation from the true camera origin to the true target origin in C.
+    r_To2TTo_C          = Trfm_T_2_C @ (-r_To2TTo_T)
+    r_CTo2TTo_V         = r_Vo2TTo_V - r_Vo2CTo_V
+    Trfm_V_2_C          = Trfm_CT_2_C @ Trfm_CT_2_V.T
+    r_CTo2TTo_C         = Trfm_V_2_C @ r_CTo2TTo_V
+    r_Co2To_C           = r_Co2CTo_C + r_CTo2TTo_C + r_To2TTo_C
+
+    q_TARGET_2_CAMERA   = rotm2q(Trfm_T_2_C)
     r_Co2To_CAMERA      = r_Co2To_C
     return q_TARGET_2_CAMERA, r_Co2To_CAMERA
 
