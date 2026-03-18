@@ -44,7 +44,7 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     T_TvT: transformation from Vicon target frame to true target frame
 
     Return: 
-    q_TARGET_2_CAMERA: quaternion representing rotation from true camera frame to true target frame
+    q_TARGET_2_CAMERA: quaternion representing rotation from true target frame to true camera frame
     r_Co2To_CAMERA: translation from true camera frame to true target frame in the true camera frame
 
     Note: pose filtering may want q_CAMERA_2_TARGET instead, which is the conjugate of q_TARGET_2_CAMERA
@@ -78,12 +78,6 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
     # R in this fcn are passive rotation matrices
     # _ABv means passive rotation from A to B Vicon frame
     
-    # general notation:
-    # ^A T_B = from B to A
-    # ^B T_C = from C to B
-    # therefore ^A T_B * ^B T_C = from C to A = ^A T_C
-    # so ^{Tv} T_{Cv} = ^{Tv} T_{V} * ^{V} T_{Cv} = ^{Tv} T_{V} * ( ^{Cv} T_{V} )^-1 
-
 
     # we have soho_VTv, which is in the V frame 
     # so to build a 4x4 homogenous, we need R_TvV, we have soho_quatVTv, so we will need to take its conjugate and get the resulting passive rotation matrix
