@@ -307,12 +307,11 @@ def _select_processor(processor_name, processor_map, processor_kind):
             f"Unknown {processor_kind} '{processor_name}'. Expected one of: {available}"
         ) from exc
 
-
 ################################ Helper Functions ################################
 def main():
     HERE                = Path(__file__).parent.resolve()
     ##################################### Inputs #####################################
-    data_folder         = HERE / "artifacts" / "offset" / "expm_001"
+    data_folder         = HERE / "artifacts" / "offset" / "expm_002"
     data_name           = data_folder.name
     image_folder        = data_folder / "images"
     # kps_file is in mm
@@ -324,13 +323,11 @@ def main():
     # calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
     offset_data         = data_folder / "offset_results.json"
     # setup keys
-    res_path            = HERE / "results" / f'{data_name}_v003'
+    res_path            = HERE / "results" / f'{data_name}_v001'
 
     # choose type of vicon and opencv pose processing
-    selected_vicon_offset_processor = "v02"  # options: v01, v02, v03
-    selected_opencv_pose_processor  = "v02"  # options: v01, v02
-
-
+    selected_vicon_offset_processor = "v01"  # options: v01, v02, v03
+    selected_opencv_pose_processor  = "v01"  # options: v01, v02
     # camera parameters 
     img_width       = 4096 
     img_height      = 3000
@@ -438,7 +435,6 @@ def main():
     opencv_df       = pd.read_csv(opencv_pose_est)
     vicon_df        = pd.read_csv(vicon_pose_est)
 
-
     # extract opencv pose estimates
 
     # extract vicon pose estimates
@@ -508,7 +504,6 @@ def main():
         
         vicon_img_outpath       = res_path / f"vicon_reproj_{img_base}.png" 
         combined_img_out_path   = res_path / f"combined_reproj_{img_base}.png" 
-        # uv_cam_vicon = proj.classless_pinhole_project_to_image(
         Trf4x4_CAMVICON_2_CAM_TRUE, Trf4x4_TARGETVICON_2_TARGET_TRUE    = _load_offset_estimates(
                                                                                                     offset_data_path = offset_data, 
                                                                                                     offset_keys = offset_keys
