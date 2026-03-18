@@ -103,7 +103,10 @@ def q_error_ham(q2: NDArray, q1: NDArray) -> NDArray:
     return q_err
 
 def q2trfm(q: NDArray) -> NDArray:
-    """ Convert an RSF quaternion to a transformation matrix (passive rotation), which is transpose of a rotation matrix """
+    """ 
+    Convert an RSF quaternion to a transformation matrix (passive rotation), which is transpose of a rotation matrix 
+    Note: if you have q_A_B representing the rotation from frame B to A, then q2trfm(q_A_B) gives you T_B_A, which performs passive rotation by rotating frame B to align with A
+    """
     q       = q_norm(q)
     qv      = q[1:4]
     qs      = q[0]
@@ -112,7 +115,10 @@ def q2trfm(q: NDArray) -> NDArray:
     return Trfm
 
 def q2rotm(q: NDArray) -> NDArray:
-    """ Converts an RSF quaternion to a rotation matrix (active rotation), not a transformation matrix """
+    """ 
+    Converts an RSF quaternion to a rotation matrix (active rotation), not a transformation matrix 
+    Note: if you have q_A_B representing the rotation from frame B to A, then q2rotm(q_A_B) gives you R_A_B, which rotates vectors from B to A (active rotation)
+    """
     q       = q_norm(q)
     qv      = q[1:4]
     qs      = q[0]
