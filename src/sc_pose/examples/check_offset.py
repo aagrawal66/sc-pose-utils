@@ -330,7 +330,8 @@ def main():
     vicon_pose_est      = data_folder / "vicon_data.csv" # position in mm
     calib_data          = data_folder / "calibration.yaml" # wrong, ANAND EDIT, what?
     # calib_data          = data_folder / "calibration_2025_11_14.yaml" # a different calibration file
-    offset_data         = data_folder / "offset_results.json"
+    # offset_data         = data_folder / "offset_results.json"
+    offset_data         = data_folder / "offset_results_notation_branch.json"
     # setup keys
     res_path            = HERE / "results" / f'{data_name}_v001'
 
@@ -523,19 +524,19 @@ def main():
                                                                                                         T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE,
                                                                                                         vicon_keys = vicon_keys
                                                                                                     )
-        uv_cam_vicon    = proj.classless_pinhole_project_to_image(
-                                                                    q_CAM_2_TARGET    = q_proc_C_2_T,
-                                                                    r_Co2To_CAM       = r_proc_Co2To_C,
-                                                                    Kmat              = Kmat_cal,
-                                                                    BC_dist_coeffs    = dist_coeffs,
-                                                                    points_xyz_TARGET = target_BFF_pts_with_origin
-                                                              )                                                                                            
-        # uv_cam_vicon    = proj.classless_pinhole_project_T4x4_2_uv(
-        #                                                             T_TARGET_CAM      = T_T_C,
+        # uv_cam_vicon    = proj.classless_pinhole_project_to_image(
+        #                                                             q_CAM_2_TARGET    = q_proc_C_2_T,
+        #                                                             r_Co2To_CAM       = r_proc_Co2To_C,
         #                                                             Kmat              = Kmat_cal,
         #                                                             BC_dist_coeffs    = dist_coeffs,
         #                                                             points_xyz_TARGET = target_BFF_pts_with_origin
-        #                                                         )
+        #                                                       )                                                                                            
+        uv_cam_vicon    = proj.classless_pinhole_project_T4x4_2_uv(
+                                                                    T_TARGET_CAM      = T_T_C,
+                                                                    Kmat              = Kmat_cal,
+                                                                    BC_dist_coeffs    = dist_coeffs,
+                                                                    points_xyz_TARGET = target_BFF_pts_with_origin
+                                                                )
         img_vicon_out   = draw_uv_points_on_image(
                                                     img_or_path     = str(img_path),
                                                     points_uv       = uv_cam_vicon,
