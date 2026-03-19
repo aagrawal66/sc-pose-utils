@@ -184,7 +184,7 @@ class PoseProjector:
         # need to make points_xyz_TARGET homoegenous
         num_pts             = points_xyz_TARGET.shape[0] 
         points_xyzh_TARGET  = np.column_stack([points_xyz_TARGET, np.ones(num_pts, dtype = points_xyz_TARGET.dtype)])
-        points_xyzh_CAM     = (T_TARGET_CAM @ points_xyzh_TARGET.T).T # inner transpose for broadcasting, outer transpose to get back to (N, 4)
+        points_xyzh_CAM     = (T_TARGET_CAM @ points_xyzh_TARGET.T).T # inner transpose for batched matrix multiplication, outer transpose to get back to (N, 4)
         points_xyz_CAM      = points_xyzh_CAM[:, :3] # convert back to non-homogeneous coordinates, shape (N, 3) 
         # normalize points to image plane
         XX                  = points_xyz_CAM[:, 0] 
