@@ -126,82 +126,6 @@ def _process_vicon_offset_v01(row, T_CvC, T_TvT, vicon_keys):
 
     return q_C_2_T, r_Co2To_C, T_T_C
 
-# def _process_vicon_offset_v02(row, T_CvC, T_TvT, vicon_keys):
-#     """
-#     Process vicon data using passive rotation matricies and translation vectors
-    
-#     T_CvC: transformation from Vicon camera frame to true camera frame
-#     T_TvT: transformation from Vicon target frame to true target frame
-#     """ 
-#     Cv_T_C              = np.asarray(T_CvC, dtype = float)
-#     Tv_T_T              = np.asarray(T_TvT, dtype = float)
-#     T_CvC               = T4x4_inv(Cv_T_C)
-#     T_TvT               = T4x4_inv(Tv_T_T)
-
-#     # Raw Vicon translations are in meters in the Vicon frame.
-#     r_Vo2CTo_V          = np.array(
-#                                 [
-#                                     row[vicon_keys['x_cam']],
-#                                     row[vicon_keys['y_cam']],
-#                                     row[vicon_keys['z_cam']],
-#                                 ],
-#                                 dtype = float,
-#                             ) * 1E-3
-#     q_V_2_CT            = np.array(
-#                                 [
-#                                     row[vicon_keys['qw_cam']],
-#                                     row[vicon_keys['qx_cam']],
-#                                     row[vicon_keys['qy_cam']],
-#                                     row[vicon_keys['qz_cam']],
-#                                 ],
-#                                 dtype = float,
-#                             )
-#     r_Vo2TTo_V          = np.array(
-#                                 [
-#                                     row[vicon_keys['x_target']],
-#                                     row[vicon_keys['y_target']],
-#                                     row[vicon_keys['z_target']],
-#                                 ],
-#                                 dtype = float,
-#                             ) * 1E-3
-#     q_V_2_TT            = np.array(
-#                                 [
-#                                     row[vicon_keys['qw_target']],
-#                                     row[vicon_keys['qx_target']],
-#                                     row[vicon_keys['qy_target']],
-#                                     row[vicon_keys['qz_target']],
-#                                 ],
-#                                 dtype = float,
-#                             )
-
-#     # Use the raw Vicon quaternions the same way CamCal builds T_VCv / T_VTv.
-#     Trfm_V_2_CT         = q2trfm(q_V_2_CT)
-#     Trfm_V_2_TT         = q2trfm(q_V_2_TT)
-#     Trfm_CT_2_V         = Trfm_V_2_CT.T
-#     Trfm_TT_2_V         = Trfm_V_2_TT.T
-
-#     # Extract true-frame offset terms.
-#     r_Co2CTo_C          = T_CvC[:3, 3]
-#     Trfm_CT_2_C         = T_CvC[:3, :3]
-#     r_To2TTo_T          = T_TvT[:3, 3]
-#     Trfm_TT_2_T         = T_TvT[:3, :3]
-
-#     # Compose target-vicon -> camera-vicon, then true-target -> true-camera.
-#     Trfm_TT_CT          = Trfm_V_2_CT @ Trfm_V_2_TT.T
-#     Trfm_T_2_C          = Trfm_CT_2_C @ Trfm_TT_CT @ Trfm_TT_2_T.T
-
-#     # Translation from the true camera origin to the true target origin in C.
-#     r_To2TTo_C          = Trfm_T_2_C @ (-r_To2TTo_T)
-#     r_CTo2TTo_V         = r_Vo2TTo_V - r_Vo2CTo_V
-#     Trfm_V_2_C          = Trfm_CT_2_C @ Trfm_CT_2_V.T
-#     r_CTo2TTo_C         = Trfm_V_2_C @ r_CTo2TTo_V
-#     r_Co2To_C           = r_Co2CTo_C + r_CTo2TTo_C + r_To2TTo_C
-
-#     q_C_2_T             = rotm2q(Trfm_T_2_C)
-#     r_Co2To_C           = r_Co2To_C
-#     return q_C_2_T, r_Co2To_C
-
-
 def _process_vicon_offset_v03(row, T_CvC, T_TvT, vicon_keys):
         """
         Process vicon data using passive rotation matrices and translation vectors
@@ -523,14 +447,16 @@ def main():
                                                                                                         T_CvC = Trf4x4_CAMVICON_2_CAM_TRUE,
                                                                                                         T_TvT = Trf4x4_TARGETVICON_2_TARGET_TRUE,
                                                                                                         vicon_keys = vicon_keys
-                                                                                                    )
+                                                                                                  )
+        # TODO: patch inputs from q_proc_C_2_T into projection function 
         # uv_cam_vicon    = proj.classless_pinhole_project_to_image(
         #                                                             q_CAM_2_TARGET    = q_proc_C_2_T,
         #                                                             r_Co2To_CAM       = r_proc_Co2To_C,
         #                                                             Kmat              = Kmat_cal,
         #                                                             BC_dist_coeffs    = dist_coeffs,
         #                                                             points_xyz_TARGET = target_BFF_pts_with_origin
-        #                                                       )                                                                                            
+        #                                                       )
+        #                                                                                             
         uv_cam_vicon    = proj.classless_pinhole_project_T4x4_2_uv(
                                                                     T_TARGET_CAM      = T_T_C,
                                                                     Kmat              = Kmat_cal,
