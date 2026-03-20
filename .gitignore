@@ -206,7 +206,14 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# ignore images
+*.png
 
 # specific folders in sc-pose-utils
 sc_pose/examples/results/*
-*.png
+!sc_pose/examples/results/.gitkeep
+!sc_pose/examples/results/**/
+
+sc_pose/examples/artifacts/*
+!sc_pose/examples/artifacts/.gitkeep
+!sc_pose/examples/artifacts/**/
