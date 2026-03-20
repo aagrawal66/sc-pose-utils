@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 # local imports
-from sc_pose.math.quaternion import q_error_shu
+from sc_pose.mathtils.quaternion import q_error_shu
 
 def rmse_calc(gt: NDArray, pred: NDArray):
     """ Calculate the Root Mean Squared Error (RMSE) between the ground truth and predicted values """

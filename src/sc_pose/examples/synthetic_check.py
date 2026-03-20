@@ -1,13 +1,14 @@
 """ An example script of how to use the Pinhole Camera model with synthetic image data that have all the same camera parameters """
 import numpy as np
 from pathlib import Path
+import shutil
 import pandas as pd
 import json 
 import cv2
 import pdb
 
 # local imports
-from sc_pose.math.quaternion import q_norm
+from sc_pose.mathtils.quaternion import q_norm, q2rotm, q2trfm, q_conj
 from sc_pose.sensors.camera import PinholeCamera
 from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 
@@ -51,13 +52,16 @@ sensor_height   = 24 # in mm
 
 meta_quat_key   = ['pose', 'pose', 'pose', 'pose', 'pose']
 meta_tr_key     = ['pose', 'pose', 'translation', 'pose', 'pose']
-res_path        = HERE / 'results'
+res_path        = HERE / 'results' / 'synthetic_check'
 calib_flag      = True
 calib_flag      = False
 num_kps         = 200
 ##################################### Inputs #####################################
 
-
+# wipe existing results and create new directory
+if res_path.exists():
+    shutil.rmtree(res_path)
+res_path.mkdir(parents = True, exist_ok = True)
 
 for target_name, img_path, meta_path, target_kps_path, img_width, img_height, meta_quat_key, meta_tr_key in zip(target_name, img_list, meta_list, target_kps_list, img_widths, img_heights,  meta_quat_key, meta_tr_key):
     # create camera object
@@ -91,23 +95,25 @@ for target_name, img_path, meta_path, target_kps_path, img_width, img_height, me
         quaternion      = q_norm(np.array( meta_dict[meta_quat_key] ))
     
     r_Co2To_CAM     = translation
-    q_TARGET_2_CAM  = quaternion
-    # # we want q_TARGET_2_CAM and r_Co2To_CAM
-    # q_TARGET_2_CAM  = q_mult_shu(q2 = q_VICON_2_CAM, q1 = q_conj(q_VICON_2_TARGET))
-    # r_Co2To_CAM    = q2trfm(q_VICON_2_CAM) @ ( r_Vo2To_VICON - r_Vo2Co_VICON)
+    q_CAM_2_TARGET  = quaternion
+    # we actually need q_CAM_2_TARGET and when we are using q_target_2_cam b/c
+    # we need Trfm_TARGET_2_CAM = (Rotm_TARGET_2_CAM)' = Rotm_CAM_2_TARGET = (q_CAM_2_TARGET)_op 
 
     uv_cam  = proj.project_to_image(
-                                        q_TARGET_2_CAM = q_TARGET_2_CAM,
+                                        q_CAM_2_TARGET = q_CAM_2_TARGET,
                                         r_Co2To_CAM = r_Co2To_CAM,
                                         points_xyz_TARGET = target_BFF_pts 
                                     )
     
     uv_cam2 = proj.classless_pinhole_project_to_image(
-                                                        q_TARGET_2_CAM, 
+                                                        q_CAM_2_TARGET, 
                                                         r_Co2To_CAM, 
                                                         Kmat,
                                                         target_BFF_pts
-                                                 ) 
+                                                 )
+    # check max diff 
+    max_diff    = np.max( np.abs(uv_cam - uv_cam2) ) 
+    print(f"Max difference between the two projection methods using quaternion and translation: {max_diff:.6f} pixels")
     # fill this in with image info
     img     = draw_uv_points_on_image(
                                     img_or_path = img_path,
@@ -119,5 +125,29 @@ for target_name, img_path, meta_path, target_kps_path, img_width, img_height, me
                                 )
     cv2.imwrite( res_path / f"synthetic_check_{img_base}.png", img)
     
+    # separate path for reprojection
+    T_T_C           = np.eye(4)
+    T_T_C[:3, -1]   = r_Co2To_CAM
+    T_T_C[:3, :3]   = q2trfm(q_CAM_2_TARGET)
+    uv_cam3         = proj.T4x4_2_uv(
+                                        T4x4_A_B = T_T_C,
+                                        pts_A = target_BFF_pts
+                                    )
+    uv_cam4         = proj.classless_pinhole_project_T4x4_2_uv(
+                                                                T_TARGET_CAM = T_T_C,
+                                                                Kmat = Kmat,
+                                                                points_xyz_TARGET = target_BFF_pts,
+                                                                BC_dist_coeffs = None
+                                                            )
+    # check max diff
+    max_diff2   = np.max( np.abs(uv_cam3 - uv_cam4) ) 
+    print(f"Max difference between the two reprojection methods using T4x4: {max_diff2:.6f} pixels")
 
+    # max diff3 between the two projection methods using quaternion and translation vs T4x4
+    max_diff3   = np.max( np.abs(uv_cam - uv_cam3) ) 
+    print(f"Max difference between the projection using quaternion and translation vs T4x4: {max_diff3:.6f} pixels")
+    cv2.imwrite( res_path / f"synthetic_check_reproj_with_T4x4_{img_base}.png", img)
+
+    
+print(f"Results saved to: {res_path}")
 pdb.set_trace()

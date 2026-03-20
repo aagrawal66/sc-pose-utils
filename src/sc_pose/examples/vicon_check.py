@@ -6,7 +6,7 @@ import cv2
 import pdb
 
 # local imports
-from sc_pose.math.quaternion import q2trfm, q_mult_shu, q_conj
+from sc_pose.mathtils.quaternion import q2trfm, q_mult_shu, q_conj
 from sc_pose.sensors.camera import PinholeCamera
 from sc_pose.sensors.camera_projections import PoseProjector, draw_uv_points_on_image
 

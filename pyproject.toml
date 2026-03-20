@@ -5,7 +5,7 @@ build-backend   = "setuptools.build_meta"
 name            = "sc_pose"
 version         = "0.0.1"
 dependencies    = [
-                    "numpy",
+                    "numpy<2.0",
                     "PyYAML",
                     "opencv-python",
                 ]
@@ -18,5 +18,19 @@ examples        = [
                     "pandas",
                 ]
 
-# to install the package, run the following command in the terminal at the base of the repo:
-# pip install -e .
+[tool.setuptools.packages.find]
+where           = ["src"]
+include         = ["sc_pose*"]
+
+
+# for setup, run at repo root:
+# python -m pip install -e .
+
+# may need to specific mamba path to python: ~/miniforge3/envs/neurals/bin/python -m pip install -e .
+
+# example run:
+# cd ~/agnc_repos/sc-pose-utils
+# python -m pip install -e .
+
+# to uninstall from environment:
+# python -m pip uninstall sc_pose

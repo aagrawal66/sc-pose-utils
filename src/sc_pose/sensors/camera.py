@@ -94,7 +94,7 @@ class CameraBase(ABC):
     def build_Kmat(self, fx: float, fy: float, cx: float, cy: float, skew: float = 0.0) -> NDArray[np.floating]:
         """ 
         build the camera intrinsic matrix K 
-        LaTeX: K = \begin{bmatrix} f_x & s & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
+        LaTeX: K = begin{bmatrix} f_x & s & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
         """
         Kmat    = np.array([
                             [fx, skew, cx],
@@ -506,4 +506,8 @@ class PinholeCamera(CameraBase):
         # perspective back to normalized camera coordinates
         XYZ     = np.stack([x, y, ones], axis = -1) # shape (..., 3)
         XYZU    = XYZ / np.linalg.norm(XYZ, axis = -1, keepdims = True) # normalize to unit length
-        return XYZ, XYZU 
+        return XYZ, XYZU
+    
+    def _dist_coeffs_as_array(self) -> NDArray[np.floating]:
+        """ Return distortion coefficients as array in OpenCV order: [k1, k2, p1, p2, k3] """
+        return np.array([self.k1, self.k2, self.p1, self.p2, self.k3], dtype = self.dtype)
