@@ -1,5 +1,7 @@
 """ Code to project pose information on to a camera image, uses a Camera Object """
 
+from __future__ import annotations
+
 import numpy as np 
 from numpy.typing import NDArray 
 from pathlib import Path
