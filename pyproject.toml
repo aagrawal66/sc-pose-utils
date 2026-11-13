@@ -5,12 +5,17 @@ build-backend   = "setuptools.build_meta"
 name            = "sc_pose"
 version         = "0.0.1"
 dependencies    = [
-                    "numpy<2.0",
+                    "numpy>=1.26,<3",
                     "PyYAML",
-                    "opencv-python",
                 ]
 
 [project.optional-dependencies]
+headless        = [
+                    "opencv-python-headless>=4.9",
+                ]
+gui             = [
+                    "opencv-python>=4.9",
+                ]
 metrics         = [
                     "torch",
                 ]
